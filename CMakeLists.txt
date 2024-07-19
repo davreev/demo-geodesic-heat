@@ -1,0 +1,123 @@
+cmake_minimum_required(VERSION 3.14)
+project(
+    geodesic-heat
+    VERSION 0.1.0
+    LANGUAGES C CXX
+)
+
+#
+# Global config
+#
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
+
+list(
+    PREPEND CMAKE_MODULE_PATH 
+    "${CMAKE_CURRENT_LIST_DIR}/cmake"
+)
+
+# Show download progress
+set(FETCHCONTENT_QUIET FALSE)
+
+#
+# Main target
+#
+
+set(app_name geodesic-heat)
+
+add_executable(
+    ${app_name}
+    "src/assets.cpp"
+    "src/graphics.c"
+    "src/graphics.cpp"
+    "src/impl.cpp"
+    "src/main.cpp"
+    "src/scene.cpp"
+    "src/tasks.cpp"
+)
+
+include(deps/dr-app)
+include(deps/happly)
+include(deps/stb-image)
+target_link_libraries(
+    ${app_name}
+    PRIVATE
+        dr::app
+        happly::happly
+        stb::image
+)
+
+target_compile_options(
+    ${app_name}
+    PRIVATE 
+        -Wall -Wextra -Wpedantic -Werror
+)
+
+if(EMSCRIPTEN)
+    # Emscripten compiler options
+    target_link_options(
+        ${app_name}
+        PUBLIC
+            "-sUSE_WEBGL2=1"
+            "-sALLOW_MEMORY_GROWTH"
+            "-sFORCE_FILESYSTEM=1"
+            "-sPTHREAD_POOL_SIZE_STRICT=0"
+            # "-sPTHREAD_POOL_SIZE=1"
+            "-sALLOW_BLOCKING_ON_MAIN_THREAD=0"
+            "$<$<CONFIG:Debug>:-sASSERTIONS=2>"
+            "$<$<CONFIG:Debug>:-sPTHREADS_DEBUG=1>"
+            "$<$<CONFIG:Debug>:-gsource-map>"
+            "$<$<CONFIG:Debug>:--threadprofiler>"
+    )
+
+    # Enable use of std::thread
+    target_compile_options(${app_name} PRIVATE -pthread)
+    target_link_options(${app_name} PRIVATE -pthread)
+endif()
+
+#
+# Post-build commands
+#
+
+include(app-utils)
+set(src_dir "${CMAKE_CURRENT_SOURCE_DIR}")
+set(gen_dir "${CMAKE_CURRENT_BINARY_DIR}/gen")
+get_default_runtime_output_dir(runtime_output_dir)
+
+set(
+    glsl_files
+    "${src_dir}/assets/shaders/contour_color.vert.glsl"
+    "${src_dir}/assets/shaders/contour_color.frag.glsl"
+    "${src_dir}/assets/shaders/contour_line.vert.glsl"
+    "${src_dir}/assets/shaders/contour_line.frag.glsl"
+    # ...
+)
+
+set(gen_asset_files)
+convert_shaders(gen_asset_files)
+# ...
+
+set(
+    asset_files
+    "${src_dir}/assets/images/matcap-white-shiny.png"
+    "${src_dir}/assets/models/torus.ply"
+    "${src_dir}/assets/models/double-torus.ply"
+    "${src_dir}/assets/models/triple-torus.ply"
+    "${src_dir}/assets/models/chen-gackstatter-surface.ply"
+    "${src_dir}/assets/models/node-cluster.ply"
+    "${src_dir}/assets/models/armadillo-remesh.ply"
+    ${gen_asset_files}
+    # ...
+)
+
+if(EMSCRIPTEN)
+    set(
+        web_files
+        "${src_dir}/web/index.html"
+    )
+    copy_web_files()
+    package_assets()
+else()
+    copy_assets()
+endif()

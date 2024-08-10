@@ -62,9 +62,11 @@ if(EMSCRIPTEN)
             "-sUSE_WEBGL2=1"
             "-sALLOW_MEMORY_GROWTH"
             "-sFORCE_FILESYSTEM=1"
-            "-sPTHREAD_POOL_SIZE_STRICT=0"
-            # "-sPTHREAD_POOL_SIZE=1"
+            # "-sPTHREAD_POOL_SIZE_STRICT=0"
+            "-sPTHREAD_POOL_SIZE_STRICT=1"
+            "-sPTHREAD_POOL_SIZE=1" # Mirrors arg passed to thread_pool_start
             "-sALLOW_BLOCKING_ON_MAIN_THREAD=0"
+            "-sSTACK_SIZE=128kb" # Mirrors default limit used by Eigen
             "$<$<CONFIG:Debug>:-sASSERTIONS=2>"
             "$<$<CONFIG:Debug>:-sPTHREADS_DEBUG=1>"
             "$<$<CONFIG:Debug>:-gsource-map>"
@@ -115,6 +117,7 @@ if(EMSCRIPTEN)
     set(
         web_files
         "${src_dir}/web/index.html"
+        "${src_dir}/web/coi-serviceworker.js"
     )
     copy_web_files()
     package_assets()

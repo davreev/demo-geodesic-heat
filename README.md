@@ -44,10 +44,10 @@ emcmake cmake -S . -B ./build -DCMAKE_BUILD_TYPE=<config>
 cmake --build ./build
 ```
 
-Output can be served locally for testing via the provided script
+Output can be served locally for testing e.g.
 
 ```sh
-python test_server.py [<port-number>]
+python -m http.server
 ```
 
 ### Dependencies

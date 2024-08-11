@@ -20,10 +20,8 @@ struct RenderPass
             sg_apply_pipeline(pipeline);
             prev_pipeline_ = pipeline;
         }
-
         bindings_ = {};
         mat.bind_resources(bindings_);
-
         mat.apply_uniforms();
     }
 
@@ -79,6 +77,7 @@ struct ContourColor
         struct {
             f32 spacing;
             f32 offset;
+            f32 time;
         } fragment;
     } params{};
     // clang-format on

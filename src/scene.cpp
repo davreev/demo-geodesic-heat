@@ -545,7 +545,8 @@ void draw(void* /*context*/)
                     as_mat<4, 4>(mat.params.vertex.local_to_clip) = view_to_clip * local_to_view;
                     as_mat<4, 4>(mat.params.vertex.local_to_view) = local_to_view;
                     mat.params.fragment.spacing = state.params.contour_spacing.value;
-                    mat.params.fragment.offset = eval_offset();
+                    mat.params.fragment.offset = curr_offset();
+                    mat.params.fragment.time = stm_sec(state.animate_time);
                 }
                 pass.set_material(mat);
                 break;
@@ -559,7 +560,7 @@ void draw(void* /*context*/)
                     as_mat<4, 4>(mat.params.vertex.local_to_view) = local_to_view;
                     mat.params.fragment.spacing = state.params.contour_spacing.value;
                     mat.params.fragment.width = state.params.contour_width.value;
-                    mat.params.fragment.offset = eval_offset();
+                    mat.params.fragment.offset = curr_offset();
                 }
                 pass.set_material(mat);
                 break;

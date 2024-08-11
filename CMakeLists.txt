@@ -58,7 +58,7 @@ if(EMSCRIPTEN)
     # Emscripten compiler options
     target_link_options(
         ${app_name}
-        PUBLIC
+        PRIVATE
             "-sUSE_WEBGL2=1"
             "-sALLOW_MEMORY_GROWTH"
             "-sFORCE_FILESYSTEM=1"
@@ -66,16 +66,11 @@ if(EMSCRIPTEN)
             "-sPTHREAD_POOL_SIZE_STRICT=1"
             "-sPTHREAD_POOL_SIZE=1" # Mirrors arg passed to thread_pool_start
             "-sALLOW_BLOCKING_ON_MAIN_THREAD=0"
-            "-sSTACK_SIZE=128kb" # Mirrors default limit used by Eigen
             "$<$<CONFIG:Debug>:-sASSERTIONS=2>"
             "$<$<CONFIG:Debug>:-sPTHREADS_DEBUG=1>"
             "$<$<CONFIG:Debug>:-gsource-map>"
             "$<$<CONFIG:Debug>:--threadprofiler>"
     )
-
-    # Enable use of std::thread
-    target_compile_options(${app_name} PRIVATE -pthread)
-    target_link_options(${app_name} PRIVATE -pthread)
 endif()
 
 #

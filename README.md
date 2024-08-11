@@ -2,12 +2,12 @@
 
 ![](https://github.com/davreev/demo-geodesic-heat/actions/workflows/build.yml/badge.svg)
 
-Source code for https://davreev.gitlab.io/pub/apps/geodesic-heat/
+Source code for https://davreev.gitlab.io/demos/geodesic-heat/
 
 ## Build
 
-This project can be built to run natively or in a web browser. Build instructions vary slightly for
-each target.
+This project can be built to run natively or in a web browser. Build instructions vary slightly
+between the two targets.
 
 ### Native Build
 

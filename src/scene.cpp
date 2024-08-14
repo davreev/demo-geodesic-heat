@@ -589,8 +589,15 @@ void handle_event(void* /*context*/, App::Event const& event)
                 {
                     if (is_mouse_over(event))
                     {
-                        auto const& [center, radius] = state.mesh->bounds;
-                        center_camera(center, radius);
+                        if (state.mesh)
+                        {
+                            auto const& [center, radius] = state.mesh->bounds;
+                            center_camera(center, radius);
+                        }
+                        else
+                        {
+                            center_camera({}, 1.0f);
+                        }
                     }
                     break;
                 }

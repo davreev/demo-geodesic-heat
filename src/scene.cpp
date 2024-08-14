@@ -342,8 +342,7 @@ void draw_about_tab()
     if (ImGui::BeginTabItem("About"))
     {
         ImGui::SeparatorText("Info");
-        ImGui::TextWrapped(
-            "This is a simple demo of the heat method (1) for approximating geodesic distance on surfaces.");
+        ImGui::TextWrapped("Approximating geodesic distances on surfaces via the heat method");
         ImGui::Spacing();
 
         ImGui::Text(
@@ -352,9 +351,7 @@ void draw_about_tab()
             scene_info.version.minor,
             scene_info.version.patch);
         ImGui::Text("%s", scene_info.author);
-        ImGui::Text("Source:");
-        ImGui::SameLine();
-        ImGui::TextLinkOpenURL("https://github.com/davreev/demo-geodesic-heat");
+        ImGui::TextLinkOpenURL("Source", "https://github.com/davreev/demo-geodesic-heat");
         ImGui::Spacing();
 
         ImGui::SeparatorText("Controls");
@@ -365,15 +362,13 @@ void draw_about_tab()
         ImGui::Spacing();
 
         ImGui::SeparatorText("References");
-        ImGui::Text("1)");
-        ImGui::SameLine();
-        ImGui::TextLinkOpenURL("https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/index.html");
+        ImGui::TextLinkOpenURL(
+            "The Heat Method for Distance Computation",
+            "https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod/index.html");
         ImGui::Spacing();
 
         ImGui::SeparatorText("Asset Credits");
-        ImGui::Text("Armadillo:");
-        ImGui::SameLine();
-        ImGui::TextLinkOpenURL("http://graphics.stanford.edu/data/3Dscanrep/");
+        ImGui::TextLinkOpenURL("Armadillo", "http://graphics.stanford.edu/data/3Dscanrep/");
         ImGui::Spacing();
 
         ImGui::EndTabItem();
@@ -398,9 +393,9 @@ void draw_main_window()
     ImGui::End();
 }
 
-void draw_animated_text(Span<char const*> const messages, const f64 duration, const f64 time)
+void draw_animated_text(Span<char const*> const messages, f64 const duration, f64 const time)
 {
-    const f64 t = fract(time / duration);
+    f64 const t = fract(time / duration);
     ImGui::Text("%s", messages[static_cast<isize>(t * messages.size())]);
 }
 
@@ -441,7 +436,7 @@ void debug_draw_source_normals(Mat4<f32> const& local_to_view, Mat4<f32> const& 
         sgl_c3f(1.0f, 1.0f, 1.0f);
 
         auto const& verts = state.mesh->vertices;
-        const i32 num_sources = state.params.num_sources.value;
+        i32 const num_sources = state.params.num_sources.value;
         f32 scale = state.mesh->bounds.radius * 0.2f;
 
         for (i32 i = 0; i < num_sources; ++i)
@@ -525,9 +520,9 @@ void draw(void* /*context*/)
         RenderPass pass{};
 
         auto const curr_offset = []() -> f32 {
-            const f32 offset = state.params.contour_offset.value;
-            const f32 speed = state.params.contour_speed.value;
-            const f32 time = stm_sec(state.animate_time);
+            f32 const offset = state.params.contour_offset.value;
+            f32 const speed = state.params.contour_speed.value;
+            f32 const time = stm_sec(state.animate_time);
             return offset + time * speed;
         };
 

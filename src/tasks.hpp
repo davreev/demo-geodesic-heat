@@ -9,7 +9,7 @@
 namespace dr
 {
 
-struct LoadMeshAssetTask
+struct LoadMeshAsset
 {
     struct
     {
@@ -24,7 +24,7 @@ struct LoadMeshAssetTask
     void operator()();
 };
 
-struct SolveDistanceTask
+struct SolveDistance
 {
     enum Error : u8
     {

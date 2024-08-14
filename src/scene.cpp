@@ -68,8 +68,8 @@ struct {
 
     TaskQueue task_queue;
     struct {
-        LoadMeshAssetTask load_mesh_asset;
-        SolveDistanceTask solve_distance;
+        LoadMeshAsset load_mesh_asset;
+        SolveDistance solve_distance;
     } tasks;
 
     struct {
@@ -152,14 +152,12 @@ void set_mesh(MeshAsset const* mesh)
     }
 }
 
-void schedule_task(SolveDistanceTask& task)
+void schedule_task(SolveDistance& task)
 {
-    using Task = SolveDistanceTask;
     using Event = TaskQueue::PollEvent;
 
     state.task_queue.push(&task, nullptr, [](Event const& event) -> bool {
-        auto const task = static_cast<Task*>(event.task);
-
+        auto const task = static_cast<SolveDistance*>(event.task);
         switch (event.type)
         {
             case Event::BeforeSubmit:
@@ -183,14 +181,12 @@ void schedule_task(SolveDistanceTask& task)
     });
 }
 
-void schedule_task(LoadMeshAssetTask& task)
+void schedule_task(LoadMeshAsset& task)
 {
-    using Task = LoadMeshAssetTask;
     using Event = TaskQueue::PollEvent;
 
     state.task_queue.push(&task, nullptr, [](Event const& event) -> bool {
-        auto const task = static_cast<Task*>(event.task);
-
+        auto const task = static_cast<LoadMeshAsset*>(event.task);
         switch (event.type)
         {
             case Event::BeforeSubmit:

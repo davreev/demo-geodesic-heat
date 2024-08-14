@@ -29,13 +29,13 @@ f32 mean_edge_length(
 
 } // namespace
 
-void LoadMeshAssetTask::operator()()
+void LoadMeshAsset::operator()()
 {
     output.mesh = get_asset(input.handle);
     assert(output.mesh);
 }
 
-void SolveDistanceTask::operator()()
+void SolveDistance::operator()()
 {
     assert(input.mesh);
 

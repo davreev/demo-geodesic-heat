@@ -12,6 +12,7 @@ dr::App::Desc DR_APP_MAIN(int /*argc*/, char* /*argv*/[])
     {
         desc.width = 1280;
         desc.height = 720;
+        desc.sample_count = 4;
         desc.window_title = "Demo: Geodesic Heat";
 #if __EMSCRIPTEN__
         desc.html5_canvas_name = "geodesic-heat";

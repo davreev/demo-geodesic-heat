@@ -464,7 +464,7 @@ void draw_debug(Mat4<f32> const& local_to_view, Mat4<f32> const& view_to_clip)
 void open(void* /*context*/)
 {
     thread_pool_start(1);
-    init_materials();
+    init_graphics();
 
     // Load default mesh asset and solve
     {

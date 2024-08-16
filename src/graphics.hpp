@@ -9,6 +9,10 @@
 namespace dr
 {
 
+void init_graphics();
+
+void reload_shaders();
+
 struct RenderPass
 {
     template <typename Material>
@@ -81,7 +85,6 @@ struct ContourColor
     } params{};
     // clang-format on
 
-    static void init();
     static GfxPipeline::Handle pipeline();
 
     void bind_resources(sg_bindings& dst) const;
@@ -104,15 +107,10 @@ struct ContourLine
     } params{};
     // clang-format on
 
-    static void init();
     static GfxPipeline::Handle pipeline();
 
     void bind_resources(sg_bindings& dst) const;
     void apply_uniforms() const;
 };
-
-void init_materials();
-
-void reload_shaders();
 
 } // namespace dr

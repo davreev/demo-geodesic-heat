@@ -16,12 +16,6 @@ struct {
         struct {
             GfxPipeline pipeline;
             GfxShader shader;
-            struct {
-                struct {
-                    GfxImage::Handle image;
-                    GfxSampler::Handle sampler;
-                } matcap;
-            } resources;
         } contour_color;
         struct {
             GfxPipeline pipeline;
@@ -76,6 +70,29 @@ void init_shader<ContourLine>()
     mat.shader.init(contour_line_shader_desc(vert->src.c_str(), frag->src.c_str()));
 }
 
+template <typename Material>
+void init_material();
+
+template <>
+void init_material<ContourColor>()
+{
+    auto& mat = state.materials.contour_color;
+    assert(!mat.pipeline.is_valid());
+
+    init_shader<ContourColor>();
+    mat.pipeline = GfxPipeline::make(contour_color_pipeline_desc(mat.shader));
+}
+
+template <>
+void init_material<ContourLine>()
+{
+    auto& mat = state.materials.contour_line;
+    assert(!mat.pipeline.is_valid());
+
+    init_shader<ContourLine>();
+    mat.pipeline = GfxPipeline::make(contour_line_pipeline_desc(mat.shader));
+}
+
 template <typename T>
 sg_range to_range(Span<T> const& span)
 {
@@ -92,11 +109,22 @@ void update_buffer(GfxBuffer& buf, GfxBuffer::Desc const& desc)
 
 } // namespace
 
-void init_materials()
+void init_graphics()
 {
-    ContourColor::init();
-    ContourLine::init();
+    // Initialize materials
+    init_material<ContourColor>();
+    init_material<ContourLine>();
     // ...
+
+    // Initialize shared resources
+    {
+        ImageAsset const* image = get_asset(AssetHandle::Image_Matcap);
+        state.images.matcap = GfxImage::make(
+            matcap_image_desc(image->data.get(), image->width, image->height));
+    }
+
+    if (!state.samplers.matcap.is_valid())
+        state.samplers.matcap = GfxSampler::make(matcap_sampler_desc());
 }
 
 void reload_shaders()
@@ -168,31 +196,6 @@ void RenderMesh::dispatch_draw() const { sg_draw(0, index_count, 1); }
 ////////////////////////////////////////////////////////////////////////////////
 // ContourColor
 
-void ContourColor::init()
-{
-    auto& mat = state.materials.contour_color;
-    assert(!mat.pipeline.is_valid());
-
-    init_shader<ContourColor>();
-    mat.pipeline = GfxPipeline::make(contour_color_pipeline_desc(mat.shader));
-
-    // Initialize shared resources if necessary
-    {
-        if (!state.images.matcap.is_valid())
-        {
-            ImageAsset const* image = get_asset(AssetHandle::Image_Matcap);
-            state.images.matcap = GfxImage::make(
-                matcap_image_desc(image->data.get(), image->width, image->height));
-        }
-
-        if (!state.samplers.matcap.is_valid())
-            state.samplers.matcap = GfxSampler::make(matcap_sampler_desc());
-    }
-
-    mat.resources.matcap.image = state.images.matcap.handle();
-    mat.resources.matcap.sampler = state.samplers.matcap.handle();
-}
-
 GfxPipeline::Handle ContourColor::pipeline() { return state.materials.contour_color.pipeline; }
 
 void ContourColor::apply_uniforms() const
@@ -203,22 +206,12 @@ void ContourColor::apply_uniforms() const
 
 void ContourColor::bind_resources(sg_bindings& dst) const
 {
-    auto& res = state.materials.contour_color.resources;
-    dst.fs.images[0] = res.matcap.image;
-    dst.fs.samplers[0] = res.matcap.sampler;
+    dst.fs.images[0] = state.images.matcap;
+    dst.fs.samplers[0] = state.samplers.matcap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 // ContourLine
-
-void ContourLine::init()
-{
-    auto& mat = state.materials.contour_line;
-    assert(!mat.pipeline.is_valid());
-
-    init_shader<ContourLine>();
-    mat.pipeline = GfxPipeline::make(contour_line_pipeline_desc(mat.shader));
-}
 
 GfxPipeline::Handle ContourLine::pipeline() { return state.materials.contour_line.pipeline; }
 

@@ -80,7 +80,7 @@ struct {
 
     EasedOrbit orbit{{pi<f32> * -0.25f, pi<f32> * 0.25f}};
     EasedZoom zoom{{1.0f, 1.0f, view.clip_near, view.clip_far}};
-    EasedPan pan{};
+    EasedPan pan;
     Camera camera{make_camera(orbit.current, zoom.current)};
 
     struct {
@@ -90,8 +90,8 @@ struct {
     } input;
     
     struct {
-        AssetHandle::Mesh mesh_handle{};
-        DisplayMode display_mode{DisplayMode_ContourLine};
+        AssetHandle::Mesh mesh_handle;
+        DisplayMode display_mode;
         Param<i32> num_sources{1, 1, 10};
         Param<f32> solve_time{0.002f, 0.001f, 0.01f};
         Param<f32> contour_spacing{0.1f, 0.0f, 1.0f};
@@ -421,44 +421,42 @@ void draw_ui()
     draw_status_tooltip();
 }
 
-void debug_draw_source_normals(Mat4<f32> const& local_to_view, Mat4<f32> const& view_to_clip)
+void debug_draw_source_normals(Mat4<f32> const& local_to_view)
 {
-    sgl_defaults();
-
     sgl_matrix_mode_modelview();
     sgl_load_matrix(local_to_view.data());
+
+    sgl_begin_lines();
+    sgl_c3f(1.0f, 1.0f, 1.0f);
+
+    auto const& verts = state.mesh->vertices;
+    i32 const num_sources = state.params.num_sources.value;
+    f32 scale = state.mesh->bounds.radius * 0.2f;
+
+    for (i32 i = 0; i < num_sources; ++i)
+    {
+        auto const v = state.source_vertices[i];
+        auto const p0 = verts.positions.col(v);
+        auto const p1 = (p0 - verts.normals.col(v) * scale).eval();
+
+        sgl_v3f(p0.x(), p0.y(), p0.z());
+        sgl_v3f(p1.x(), p1.y(), p1.z());
+    }
+
+    sgl_end();
+}
+
+void draw_debug(Mat4<f32> const& local_to_view, Mat4<f32> const& view_to_clip)
+{
+    sgl_defaults();
 
     sgl_matrix_mode_projection();
     sgl_load_matrix(view_to_clip.data());
 
-    {
-        sgl_begin_lines();
-        sgl_c3f(1.0f, 1.0f, 1.0f);
-
-        auto const& verts = state.mesh->vertices;
-        i32 const num_sources = state.params.num_sources.value;
-        f32 scale = state.mesh->bounds.radius * 0.2f;
-
-        for (i32 i = 0; i < num_sources; ++i)
-        {
-            auto const v = state.source_vertices[i];
-            auto const p0 = verts.positions.col(v);
-            auto const p1 = (p0 - verts.normals.col(v) * scale).eval();
-
-            sgl_v3f(p0.x(), p0.y(), p0.z());
-            sgl_v3f(p1.x(), p1.y(), p1.z());
-        }
-
-        sgl_end();
-    }
-}
-
-void draw_db(Mat4<f32> const& local_to_view, Mat4<f32> const& view_to_clip)
-{
-    debug_draw_axes(local_to_view, view_to_clip, 0.1f);
+    debug_draw_axes(local_to_view, 0.1f);
 
     if (state.mesh)
-        debug_draw_source_normals(local_to_view, view_to_clip);
+        debug_draw_source_normals(local_to_view);
 
     sgl_draw();
 }
@@ -537,7 +535,6 @@ void draw(void* /*context*/)
                     as_mat<4, 4>(mat.params.vertex.local_to_view) = local_to_view;
                     mat.params.fragment.spacing = state.params.contour_spacing.value;
                     mat.params.fragment.offset = curr_offset();
-                    mat.params.fragment.time = stm_sec(state.animate_time);
                 }
                 pass.set_material(mat);
                 break;
@@ -564,8 +561,8 @@ void draw(void* /*context*/)
         pass.draw_geometry(state.gfx.mesh);
     }
 
+    draw_debug(local_to_view, view_to_clip);
     draw_ui();
-    draw_db(local_to_view, view_to_clip);
 }
 
 void handle_event(void* /*context*/, App::Event const& event)

@@ -40,7 +40,7 @@ char const* asset_path(AssetHandle::Mesh const handle)
 char const* asset_path(AssetHandle::Image const handle)
 {
     static constexpr char const* paths[]{
-        "assets/images/matcap-white-shiny.png",
+        "assets/images/matcap-white-soft.png",
     };
     static_assert(size(paths) == AssetHandle::_Image_Count);
     return paths[handle];

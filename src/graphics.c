@@ -19,8 +19,7 @@ sg_shader_desc contour_color_shader_desc(char const* const vs_src, char const* c
             .uniform_blocks[0] = {
                 .uniforms[0] = {.name = "u_spacing", .type = SG_UNIFORMTYPE_FLOAT},
                 .uniforms[1] = {.name = "u_offset", .type = SG_UNIFORMTYPE_FLOAT},
-                .uniforms[2] = {.name = "u_time", .type = SG_UNIFORMTYPE_FLOAT},
-                .size = 3 * sizeof(float),
+                .size = 2 * sizeof(float),
             },
             .images[0] = {.used = true},
             .samplers[0] = {.used = true},

@@ -14,6 +14,6 @@ void main()
 {
     gl_Position = u_local_to_clip * vec4(a_position, 1.0);
     // NOTE(dr): This assumes local_to_view has uniform scaling
-    v_view_normal = mat3(u_local_to_view) * a_normal;
+    v_view_normal = normalize(mat3(u_local_to_view) * a_normal);
     v_scalar = a_scalar;
 }

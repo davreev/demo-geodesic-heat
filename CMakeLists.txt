@@ -62,11 +62,12 @@ if(EMSCRIPTEN)
             "-sUSE_WEBGL2=1"
             "-sALLOW_MEMORY_GROWTH"
             "-sFORCE_FILESYSTEM=1"
-            # "-sPTHREAD_POOL_SIZE_STRICT=0"
             "-sPTHREAD_POOL_SIZE_STRICT=1"
             "-sPTHREAD_POOL_SIZE=1" # Mirrors arg passed to thread_pool_start
             "-sALLOW_BLOCKING_ON_MAIN_THREAD=0"
+            "-sSTACK_SIZE=1mb" # https://groups.google.com/g/emscripten-discuss/c/MgHWuq2oq7Q
             "$<$<CONFIG:Debug>:-sASSERTIONS=2>"
+            "$<$<CONFIG:Debug>:-sSTACK_OVERFLOW_CHECK=2>"
             "$<$<CONFIG:Debug>:-sPTHREADS_DEBUG=1>"
             "$<$<CONFIG:Debug>:-gsource-map>"
             "$<$<CONFIG:Debug>:--threadprofiler>"
@@ -97,7 +98,7 @@ convert_shaders(gen_asset_files)
 
 set(
     asset_files
-    "${src_dir}/assets/images/matcap-white-shiny.png"
+    "${src_dir}/assets/images/matcap-white-soft.png"
     "${src_dir}/assets/models/torus.ply"
     "${src_dir}/assets/models/double-torus.ply"
     "${src_dir}/assets/models/triple-torus.ply"

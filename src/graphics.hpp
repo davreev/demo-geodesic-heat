@@ -77,7 +77,6 @@ struct ContourColor
         struct {
             f32 spacing;
             f32 offset;
-            f32 time;
         } fragment;
     } params{};
     // clang-format on

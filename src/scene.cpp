@@ -79,7 +79,7 @@ struct {
     } view;
 
     EasedOrbit orbit{{pi<f32> * -0.25f, pi<f32> * 0.25f}};
-    EasedZoom zoom{{1.0f, 1.0f, view.clip_near, view.clip_far}};
+    EasedZoom zoom{{3.0f, 1.0f, view.clip_near, view.clip_far}};
     EasedPan pan;
     Camera camera{make_camera(orbit.current, zoom.current)};
 
@@ -103,7 +103,7 @@ struct {
 } state{};
 // clang-format on
 
-void center_camera(Vec3<f32> const& point, f32 const radius)
+void center_camera(Vec3<f32> const& point = {}, f32 const radius = 1.0f)
 {
     constexpr f32 pad_scale{1.2f};
     state.camera.pivot.position = point;
@@ -128,9 +128,6 @@ void reset_source_vertices()
 void set_mesh(MeshAsset const* mesh)
 {
     state.mesh = mesh;
-
-    // Center view on new mesh
-    center_camera(mesh->bounds.center, mesh->bounds.radius);
 
     // Initialize source vertices
     {
@@ -472,6 +469,8 @@ void open(void* /*context*/)
         state.task_queue.barrier();
         schedule_task(state.tasks.solve_distance);
     }
+
+    center_camera();
 }
 
 void close(void* /*context*/)
@@ -501,8 +500,9 @@ void update(void* /*context*/)
 
 void draw(void* /*context*/)
 {
+    // Fit to unit sphere
     Mat4<f32> const local_to_world = state.mesh //
-        ? make_translate(state.mesh->bounds.center)
+        ? make_scale_translate(vec<3>(1.0f / state.mesh->bounds.radius), -state.mesh->bounds.center)
         : Mat4<f32>::Identity();
 
     Mat4<f32> const world_to_view = state.camera.transform().inverse_to_matrix();
@@ -585,17 +585,8 @@ void handle_event(void* /*context*/, App::Event const& event)
                 case SAPP_KEYCODE_F:
                 {
                     if (is_mouse_over(event))
-                    {
-                        if (state.mesh)
-                        {
-                            auto const& [center, radius] = state.mesh->bounds;
-                            center_camera(center, radius);
-                        }
-                        else
-                        {
-                            center_camera({}, 1.0f);
-                        }
-                    }
+                        center_camera();
+
                     break;
                 }
                 case SAPP_KEYCODE_R:

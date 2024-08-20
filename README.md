@@ -2,7 +2,9 @@
 
 ![](https://github.com/davreev/demo-geodesic-heat/actions/workflows/build.yml/badge.svg)
 
-Source code for https://davreev.gitlab.io/demos/geodesic-heat/
+Demo and reference implementation of [the heat method](https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod) for approximating geodesic distance on triangle meshes.
+
+Try it here: https://davreev.gitlab.io/demos/geodesic-heat/
 
 ## Build
 
@@ -40,8 +42,8 @@ Then build via `emcmake`
 
 ```sh
 mkdir build 
-emcmake cmake -S . -B ./build -DCMAKE_BUILD_TYPE=<config>
-cmake --build ./build
+emcmake cmake -S . -B ./build -G <generator>
+cmake --build ./build [--config <config>]
 ```
 
 Output can be served locally for testing e.g.

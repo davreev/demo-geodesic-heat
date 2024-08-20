@@ -339,7 +339,7 @@ void draw_about_tab()
     if (ImGui::BeginTabItem("About"))
     {
         ImGui::SeparatorText("Info");
-        ImGui::TextWrapped("Approximating geodesic distances on surfaces via the heat method");
+        ImGui::TextWrapped("Approximating geodesic distance on surfaces via the heat method");
         ImGui::Spacing();
 
         ImGui::Text(

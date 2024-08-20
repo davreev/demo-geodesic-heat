@@ -443,14 +443,17 @@ void debug_draw_source_normals(Mat4<f32> const& local_to_view)
     sgl_end();
 }
 
-void draw_debug(Mat4<f32> const& local_to_view, Mat4<f32> const& view_to_clip)
+void draw_debug(
+    Mat4<f32> const& world_to_view,
+    Mat4<f32> const& local_to_view,
+    Mat4<f32> const& view_to_clip)
 {
     sgl_defaults();
 
     sgl_matrix_mode_projection();
     sgl_load_matrix(view_to_clip.data());
 
-    debug_draw_axes(local_to_view, 0.1f);
+    debug_draw_axes(world_to_view, 0.1f);
 
     if (state.mesh)
         debug_draw_source_normals(local_to_view);
@@ -500,11 +503,21 @@ void update(void* /*context*/)
 
 void draw(void* /*context*/)
 {
-    // Fit to unit sphere
-    Mat4<f32> const local_to_world = state.mesh //
-        ? make_scale_translate(vec<3>(1.0f / state.mesh->bounds.radius), -state.mesh->bounds.center)
-        : Mat4<f32>::Identity();
+    constexpr auto make_local_to_world = []() -> Mat4<f32> {
+        if (state.mesh)
+        {
+            // Fit to unit sphere
+            auto const& [cen, rad] = state.mesh->bounds;
+            f32 const s = 1.0f / rad;
+            return make_scale_translate(vec<3>(s), -cen * s);
+        }
+        else
+        {
+            return Mat4<f32>::Identity();
+        }
+    };
 
+    Mat4<f32> const local_to_world = make_local_to_world();
     Mat4<f32> const world_to_view = state.camera.transform().inverse_to_matrix();
     Mat4<f32> const local_to_view = world_to_view * local_to_world;
     Mat4<f32> const view_to_clip = make_perspective(
@@ -561,7 +574,7 @@ void draw(void* /*context*/)
         pass.draw_geometry(state.gfx.mesh);
     }
 
-    draw_debug(local_to_view, view_to_clip);
+    draw_debug(world_to_view, local_to_view, view_to_clip);
     draw_ui();
 }
 

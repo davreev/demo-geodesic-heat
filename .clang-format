@@ -32,7 +32,7 @@ BraceWrapping:
   SplitEmptyFunction: true
   SplitEmptyNamespace: true
   SplitEmptyRecord: true
-# BreakAfterAttributes: Always
+BreakAfterAttributes: Always
 BreakBeforeBinaryOperators: NonAssignment
 BreakBeforeBraces: Custom
 BreakBeforeTernaryOperators: true
@@ -58,6 +58,6 @@ PenaltyExcessCharacter: 1000000
 PenaltyIndentedWhitespace: 0
 PenaltyReturnTypeOnItsOwnLine: 1000
 PointerAlignment: Left
-QualifierAlignment: Right
+# QualifierAlignment: Right # Causes problems when used to format GLSL
 SortIncludes: true
 SpaceAfterTemplateKeyword: true

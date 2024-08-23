@@ -528,7 +528,7 @@ void draw(void* /*context*/)
 
     if (state.mesh)
     {
-        RenderPass pass{};
+        sg_bindings bindings{};
 
         auto const curr_offset = []() -> f32 {
             f32 const offset = state.params.contour_offset.value;
@@ -542,28 +542,30 @@ void draw(void* /*context*/)
             case DisplayMode_ContourColor:
             {
                 auto& mat = state.gfx.materials.contour_color;
-                {
-                    // Update params
-                    as_mat<4, 4>(mat.params.vertex.local_to_clip) = view_to_clip * local_to_view;
-                    as_mat<4, 4>(mat.params.vertex.local_to_view) = local_to_view;
-                    mat.params.fragment.spacing = state.params.contour_spacing.value;
-                    mat.params.fragment.offset = curr_offset();
-                }
-                pass.set_material(mat);
+                sg_apply_pipeline(mat.pipeline());
+                mat.bind_resources(bindings);
+
+                // Update uniforms
+                as_mat<4, 4>(mat.uniforms.vertex.local_to_clip) = view_to_clip * local_to_view;
+                as_mat<4, 4>(mat.uniforms.vertex.local_to_view) = local_to_view;
+                mat.uniforms.fragment.spacing = state.params.contour_spacing.value;
+                mat.uniforms.fragment.offset = curr_offset();
+                mat.apply_uniforms();
                 break;
             }
             case DisplayMode_ContourLine:
             {
                 auto& mat = state.gfx.materials.contour_line;
-                {
-                    // Update params
-                    as_mat<4, 4>(mat.params.vertex.local_to_clip) = view_to_clip * local_to_view;
-                    as_mat<4, 4>(mat.params.vertex.local_to_view) = local_to_view;
-                    mat.params.fragment.spacing = state.params.contour_spacing.value;
-                    mat.params.fragment.width = state.params.contour_width.value;
-                    mat.params.fragment.offset = curr_offset();
-                }
-                pass.set_material(mat);
+                sg_apply_pipeline(mat.pipeline());
+                mat.bind_resources(bindings);
+
+                // Update uniforms
+                as_mat<4, 4>(mat.uniforms.vertex.local_to_clip) = view_to_clip * local_to_view;
+                as_mat<4, 4>(mat.uniforms.vertex.local_to_view) = local_to_view;
+                mat.uniforms.fragment.spacing = state.params.contour_spacing.value;
+                mat.uniforms.fragment.width = state.params.contour_width.value;
+                mat.uniforms.fragment.offset = curr_offset();
+                mat.apply_uniforms();
                 break;
             }
             default:
@@ -571,7 +573,11 @@ void draw(void* /*context*/)
             }
         }
 
-        pass.draw_geometry(state.gfx.mesh);
+        // Draw geometry
+        auto const& geom = state.gfx.mesh;
+        geom.bind_resources(bindings);
+        sg_apply_bindings(bindings);
+        geom.dispatch_draw();
     }
 
     draw_debug(world_to_view, local_to_view, view_to_clip);

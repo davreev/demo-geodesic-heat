@@ -107,6 +107,14 @@ void update_buffer(GfxBuffer& buf, GfxBuffer::Desc const& desc)
         buf = GfxBuffer::make(desc);
 }
 
+template <typename Material>
+void apply_uniforms(Material&& mat)
+{
+    auto const& [vert, frag] = mat.uniforms;
+    sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, {&vert, sizeof(vert)});
+    sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, {&frag, sizeof(frag)});
+}
+
 } // namespace
 
 void init_graphics()
@@ -191,18 +199,10 @@ void RenderMesh::bind_resources(sg_bindings& dst) const
     dst.index_buffer = indices;
 }
 
-void RenderMesh::dispatch_draw() const { sg_draw(0, index_count, 1); }
-
 ////////////////////////////////////////////////////////////////////////////////
 // ContourColor
 
 GfxPipeline::Handle ContourColor::pipeline() { return state.materials.contour_color.pipeline; }
-
-void ContourColor::apply_uniforms() const
-{
-    sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, {&params.vertex, sizeof(params.vertex)});
-    sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, {&params.fragment, sizeof(params.fragment)});
-}
 
 void ContourColor::bind_resources(sg_bindings& dst) const
 {
@@ -210,17 +210,15 @@ void ContourColor::bind_resources(sg_bindings& dst) const
     dst.fs.samplers[0] = state.samplers.matcap;
 }
 
+void ContourColor::apply_uniforms() const { dr::apply_uniforms(*this); }
+
 ////////////////////////////////////////////////////////////////////////////////
 // ContourLine
 
 GfxPipeline::Handle ContourLine::pipeline() { return state.materials.contour_line.pipeline; }
 
-void ContourLine::apply_uniforms() const
-{
-    sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, {&params.vertex, sizeof(params.vertex)});
-    sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, {&params.fragment, sizeof(params.fragment)});
-}
-
 void ContourLine::bind_resources(sg_bindings& /*dst*/) const {}
+
+void ContourLine::apply_uniforms() const { dr::apply_uniforms(*this); }
 
 } // namespace dr

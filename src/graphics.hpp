@@ -13,35 +13,6 @@ void init_graphics();
 
 void reload_shaders();
 
-struct RenderPass
-{
-    template <typename Material>
-    void set_material(Material&& mat)
-    {
-        GfxPipeline::Handle const pipeline = mat.pipeline();
-        if (pipeline.id != prev_pipeline_.id)
-        {
-            sg_apply_pipeline(pipeline);
-            prev_pipeline_ = pipeline;
-        }
-        bindings_ = {};
-        mat.bind_resources(bindings_);
-        mat.apply_uniforms();
-    }
-
-    template <typename Geometry>
-    void draw_geometry(Geometry&& geom)
-    {
-        geom.bind_resources(bindings_);
-        sg_apply_bindings(bindings_);
-        geom.dispatch_draw();
-    }
-
-  private:
-    GfxPipeline::Handle prev_pipeline_{};
-    sg_bindings bindings_{};
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 // Geometry
 
@@ -60,7 +31,7 @@ struct RenderMesh
     void set_indices(Span<Vec3<i32> const> const& faces);
 
     void bind_resources(sg_bindings& dst) const;
-    void dispatch_draw() const;
+    void dispatch_draw() const { sg_draw(0, index_count, 1); };
 
   private:
     void set_vertex_capacity(isize value);
@@ -72,43 +43,45 @@ struct RenderMesh
 
 struct ContourColor
 {
-    // clang-format off
-    struct {
-        struct {
+    struct
+    {
+        struct
+        {
             f32 local_to_clip[16];
             f32 local_to_view[16];
         } vertex;
-        struct {
+
+        struct
+        {
             f32 spacing;
             f32 offset;
         } fragment;
-    } params{};
-    // clang-format on
+    } uniforms{};
 
     static GfxPipeline::Handle pipeline();
-
     void bind_resources(sg_bindings& dst) const;
     void apply_uniforms() const;
 };
 
 struct ContourLine
 {
-    // clang-format off
-    struct {
-        struct {
+    struct
+    {
+        struct
+        {
             f32 local_to_clip[16];
             f32 local_to_view[16];
         } vertex;
-        struct {
+
+        struct
+        {
             f32 spacing;
             f32 width;
             f32 offset;
         } fragment;
-    } params{};
-    // clang-format on
+    } uniforms{};
 
     static GfxPipeline::Handle pipeline();
-
     void bind_resources(sg_bindings& dst) const;
     void apply_uniforms() const;
 };

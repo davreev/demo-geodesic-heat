@@ -69,11 +69,7 @@ void SolveDistance::operator()()
 
     // Solve distance
     distance_.resize(input.mesh->vertices.count());
-    solver_.solve(
-        as_span(input.mesh->vertices.positions),
-        as_span(input.mesh->faces.vertex_ids),
-        input.source_vertices,
-        as_span(distance_));
+    solver_.solve(input.source_vertices, as_span(distance_));
 
     output.distance = as_span(distance_);
     output.error = {};

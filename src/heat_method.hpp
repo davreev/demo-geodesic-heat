@@ -34,6 +34,8 @@ struct HeatMethod
         Span<Vec3<Index> const> const& face_vertices,
         Real const time)
     {
+        domain_ = {vertex_positions, face_vertices};
+
         isize const n_v = vertex_positions.size();
         mass_.resize(n_v);
         u0_.resize(n_v);
@@ -75,14 +77,13 @@ struct HeatMethod
     }
 
     void solve(
-        Span<Vec3<Real> const> const& vertex_positions,
-        Span<Vec3<Index> const> const& face_vertices,
         Span<const Index> const& source_vertices,
         Span<Real> const& result,
         bool const store_grads = false)
     {
         assert(is_init());
 
+        auto const& [vert_coords, face_verts] = domain_;
         auto u0 = as_span(u0_);
         auto ut = as_span(ut_);
         auto lap_dist = as_span(lap_dist_);
@@ -100,12 +101,12 @@ struct HeatMethod
         if (store_grads)
         {
             // Evaluate tempterature gradient
-            grad_ut_.resize(face_vertices.size());
-            eval_gradient(vertex_positions, ut.as_const(), face_vertices, as_span(grad_ut_));
+            grad_ut_.resize(face_verts.size());
+            eval_gradient(vert_coords, ut.as_const(), face_verts, as_span(grad_ut_));
 
             // Reverse and normalize to get approx distance gradient
-            grad_dist_.resize(face_vertices.size());
-            for (isize f = 0; f < face_vertices.size(); ++f)
+            grad_dist_.resize(face_verts.size());
+            for (isize f = 0; f < face_verts.size(); ++f)
             {
                 Covec3<f32> const& g = grad_ut_[f];
                 grad_dist_[f] = -g / g.norm();
@@ -113,8 +114,8 @@ struct HeatMethod
 
             // Evaluate divergence of distance gradient
             eval_divergence(
-                vertex_positions,
-                face_vertices,
+                vert_coords,
+                face_verts,
                 as<Vec3<Real> const>(as_span(grad_dist_)),
                 lap_dist);
         }
@@ -123,23 +124,23 @@ struct HeatMethod
             as_vec(lap_dist).setZero();
 
             // Evaluate the divergence of the normalized temperature gradient
-            for (isize f = 0; f < face_vertices.size(); ++f)
+            for (isize f = 0; f < face_verts.size(); ++f)
             {
-                auto const& f_v = face_vertices[f];
+                auto const& f_v = face_verts[f];
 
                 Covec3<Real> const f_grad_ut = eval_gradient(
-                    vertex_positions[f_v[0]],
-                    vertex_positions[f_v[1]],
-                    vertex_positions[f_v[2]],
+                    vert_coords[f_v[0]],
+                    vert_coords[f_v[1]],
+                    vert_coords[f_v[2]],
                     ut_[f_v[0]],
                     ut_[f_v[1]],
                     ut_[f_v[2]]);
 
                 Covec3<Real> const f_grad_dist = f_grad_ut / -f_grad_ut.norm();
                 auto const f_lap_dist = eval_divergence(
-                    vertex_positions[f_v[0]],
-                    vertex_positions[f_v[1]],
-                    vertex_positions[f_v[2]],
+                    vert_coords[f_v[0]],
+                    vert_coords[f_v[1]],
+                    vert_coords[f_v[2]],
                     f_grad_dist.transpose().eval());
 
                 lap_dist[f_v[0]] += f_lap_dist[0];
@@ -204,6 +205,11 @@ struct HeatMethod
         Status_Solved,
     };
 
+    struct
+    {
+        Span<Vec3<Real> const> vertex_positions;
+        Span<Vec3<Index> const> face_vertices;
+    } domain_{};
     Solver heat_solver_{};
     Solver dist_solver_{};
     SparseMat<Real, Index> S_{};

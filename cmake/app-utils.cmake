@@ -9,9 +9,9 @@ endfunction()
 
 
 function(get_base_dir file result_)
-    if(file MATCHES "^${gen_dir}")
+    if(gen_dir AND file MATCHES "^${gen_dir}")
         set(result ${gen_dir})
-    elseif(file MATCHES "^${src_dir}")
+    elseif(src_dir AND file MATCHES "^${src_dir}")
         set(result ${src_dir})
     else()
         message(FATAL_ERROR "Unexpected file location: ${file}")
@@ -128,7 +128,7 @@ function(package_assets)
     if(NOT asset_files)
         return()
     endif()
-    
+
     # Create Emscripten file mappings
     set(file_mappings)
     foreach(file ${asset_files})
@@ -139,7 +139,7 @@ function(package_assets)
 
     # Create asset package via Emscripten's file packager utility
     set(emsc_file_packager "${EMSCRIPTEN_ROOT_PATH}/tools/file_packager")
-    set(output "${runtime_output_dir}/assets.data")
+    set(output "${runtime_output_dir}/${app-name}-assets.data")
     add_custom_command(
         OUTPUT
             ${output}

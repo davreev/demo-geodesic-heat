@@ -107,7 +107,7 @@ void center_camera(Vec3<f32> const& point = {}, f32 const radius = 1.0f)
 {
     constexpr f32 pad_scale{1.2f};
     state.camera.pivot.position = point;
-    state.zoom.target.distance = radius * pad_scale / std::asin(state.view.fov_y * 0.5);
+    state.zoom.target.distance = radius * pad_scale / std::sin(state.view.fov_y * 0.5);
     state.pan.target.offset = {};
 }
 

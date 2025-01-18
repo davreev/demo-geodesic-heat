@@ -35,9 +35,7 @@
         <canvas class="app" id="geodesic-heat" oncontextmenu="event.preventDefault()"></canvas>
         <script type="text/javascript">
             var Module = {
-                canvas: document.getElementById("geodesic-heat"),
                 preRun: [],
-                postRun: [],
                 print: function (text) {
                     text = Array.prototype.slice.call(arguments).join(' ');
                     console.log(text);
@@ -46,12 +44,6 @@
                     text = Array.prototype.slice.call(arguments).join(' ');
                     console.error(text);
                 },
-                setStatus: function (text) {
-                    console.log("status: " + text);
-                },
-                monitorRunDependencies: function (left) {
-                    console.log("monitor run deps: " + left);
-                }
             };
             window.onerror = function () {
                 console.log("onerror: " + event.message);

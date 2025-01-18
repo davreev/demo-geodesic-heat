@@ -546,10 +546,10 @@ void draw(void* /*context*/)
                 mat.bind_resources(bindings);
 
                 // Update uniforms
-                as_mat<4, 4>(mat.uniforms.vertex.local_to_clip) = view_to_clip * local_to_view;
-                as_mat<4, 4>(mat.uniforms.vertex.local_to_view) = local_to_view;
-                mat.uniforms.fragment.spacing = state.params.contour_spacing.value;
-                mat.uniforms.fragment.offset = curr_offset();
+                as_mat<4, 4>(mat.uniforms.local_to_clip) = view_to_clip * local_to_view;
+                as_mat<4, 4>(mat.uniforms.local_to_view) = local_to_view;
+                mat.uniforms.spacing = state.params.contour_spacing.value;
+                mat.uniforms.offset = curr_offset();
                 mat.apply_uniforms();
                 break;
             }
@@ -560,11 +560,11 @@ void draw(void* /*context*/)
                 mat.bind_resources(bindings);
 
                 // Update uniforms
-                as_mat<4, 4>(mat.uniforms.vertex.local_to_clip) = view_to_clip * local_to_view;
-                as_mat<4, 4>(mat.uniforms.vertex.local_to_view) = local_to_view;
-                mat.uniforms.fragment.spacing = state.params.contour_spacing.value;
-                mat.uniforms.fragment.width = state.params.contour_width.value;
-                mat.uniforms.fragment.offset = curr_offset();
+                as_mat<4, 4>(mat.uniforms.local_to_clip) = view_to_clip * local_to_view;
+                as_mat<4, 4>(mat.uniforms.local_to_view) = local_to_view;
+                mat.uniforms.spacing = state.params.contour_spacing.value;
+                mat.uniforms.width = state.params.contour_width.value;
+                mat.uniforms.offset = curr_offset();
                 mat.apply_uniforms();
                 break;
             }

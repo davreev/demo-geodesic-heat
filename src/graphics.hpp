@@ -45,17 +45,10 @@ struct ContourColor
 {
     struct
     {
-        struct
-        {
-            f32 local_to_clip[16];
-            f32 local_to_view[16];
-        } vertex;
-
-        struct
-        {
-            f32 spacing;
-            f32 offset;
-        } fragment;
+        f32 local_to_clip[16];
+        f32 local_to_view[16];
+        f32 spacing;
+        f32 offset;
     } uniforms{};
 
     static GfxPipeline::Handle pipeline();
@@ -67,18 +60,11 @@ struct ContourLine
 {
     struct
     {
-        struct
-        {
-            f32 local_to_clip[16];
-            f32 local_to_view[16];
-        } vertex;
-
-        struct
-        {
-            f32 spacing;
-            f32 width;
-            f32 offset;
-        } fragment;
+        f32 local_to_clip[16];
+        f32 local_to_view[16];
+        f32 spacing;
+        f32 width;
+        f32 offset;
     } uniforms{};
 
     static GfxPipeline::Handle pipeline();

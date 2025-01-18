@@ -110,10 +110,9 @@ void update_buffer(GfxBuffer& buf, GfxBuffer::Desc const& desc)
 template <typename Material>
 void apply_uniforms(Material&& mat)
 {
-    auto const& [vert, frag] = mat.uniforms;
-    sg_apply_uniforms(SG_SHADERSTAGE_VS, 0, {&vert, sizeof(vert)});
-    sg_apply_uniforms(SG_SHADERSTAGE_FS, 0, {&frag, sizeof(frag)});
+    sg_apply_uniforms(0, {&mat.uniforms, sizeof(mat.uniforms)});
 }
+
 
 } // namespace
 
@@ -206,8 +205,8 @@ GfxPipeline::Handle ContourColor::pipeline() { return state.materials.contour_co
 
 void ContourColor::bind_resources(sg_bindings& dst) const
 {
-    dst.fs.images[0] = state.images.matcap;
-    dst.fs.samplers[0] = state.samplers.matcap;
+    dst.images[0] = state.images.matcap;
+    dst.samplers[0] = state.samplers.matcap;
 }
 
 void ContourColor::apply_uniforms() const { dr::apply_uniforms(*this); }

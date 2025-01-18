@@ -2,33 +2,32 @@
 
 #include <assert.h>
 
+// NOTE(dr): The assigned shader stage doesn't appear to matter when using OpenGL backends
+static sg_shader_stage const any_stage = SG_SHADERSTAGE_VERTEX;
+
 sg_shader_desc contour_color_shader_desc(char const* const vs_src, char const* const fs_src)
 {
     // clang-format off
     return (sg_shader_desc) {
-        .vs = {
-            .source = vs_src,
-            .uniform_blocks[0] = {
-                .uniforms[0] = {.name = "u_local_to_clip", .type = SG_UNIFORMTYPE_MAT4},
-                .uniforms[1] = {.name = "u_local_to_view", .type = SG_UNIFORMTYPE_MAT4},
-                .size = 16 * 2 * sizeof(float),
+        .vertex_func = {.source = vs_src},
+        .fragment_func = {.source = fs_src},
+        .uniform_blocks[0] = {
+            .stage = any_stage,
+            .size = sizeof(float[16 * 2 + 2]),
+            .glsl_uniforms = {
+                {.glsl_name = "u_local_to_clip", .type = SG_UNIFORMTYPE_MAT4},
+                {.glsl_name = "u_local_to_view", .type = SG_UNIFORMTYPE_MAT4},
+                {.glsl_name = "u_spacing", .type = SG_UNIFORMTYPE_FLOAT},
+                {.glsl_name = "u_offset", .type = SG_UNIFORMTYPE_FLOAT},
             },
         },
-        .fs = {
-            .source = fs_src,
-            .uniform_blocks[0] = {
-                .uniforms[0] = {.name = "u_spacing", .type = SG_UNIFORMTYPE_FLOAT},
-                .uniforms[1] = {.name = "u_offset", .type = SG_UNIFORMTYPE_FLOAT},
-                .size = 2 * sizeof(float),
-            },
-            .images[0] = {.used = true},
-            .samplers[0] = {.used = true},
-            .image_sampler_pairs[0] = {
-                .used = true, 
-                .image_slot = 0, 
-                .sampler_slot = 0,
-                .glsl_name = "u_matcap", 
-            },
+        .images[0] = {.stage = any_stage},
+        .samplers[0] = {.stage = any_stage},
+        .image_sampler_pairs[0] = {
+            .glsl_name = "u_matcap", 
+            .stage = any_stage, 
+            .image_slot = 0, 
+            .sampler_slot = 0,
         },
     };
     // clang-format on
@@ -40,9 +39,11 @@ sg_pipeline_desc contour_color_pipeline_desc(sg_shader const shader)
     return (sg_pipeline_desc) {
         .shader = shader,
         .layout = {
-            .attrs[0] = {.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3},
-            .attrs[1] = {.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3},
-            .attrs[2] = {.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT},
+            .attrs = {
+                {.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3},
+                {.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3},
+                {.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT},
+            },
         },
         .depth = {
             .compare = SG_COMPAREFUNC_LESS,
@@ -58,21 +59,17 @@ sg_shader_desc contour_line_shader_desc(char const* const vs_src, char const* co
 {
     // clang-format off
     return (sg_shader_desc) {
-        .vs = {
-            .source = vs_src,
-            .uniform_blocks[0] = {
-                .uniforms[0] = {.name = "u_local_to_clip", .type = SG_UNIFORMTYPE_MAT4},
-                .uniforms[1] = {.name = "u_local_to_view", .type = SG_UNIFORMTYPE_MAT4},
-                .size = 16 * 2 * sizeof(float),
-            },
-        },
-        .fs = {
-            .source = fs_src,
-            .uniform_blocks[0] = {
-                .uniforms[0] = {.name = "u_spacing", .type = SG_UNIFORMTYPE_FLOAT},
-                .uniforms[1] = {.name = "u_width", .type = SG_UNIFORMTYPE_FLOAT},
-                .uniforms[2] = {.name = "u_offset", .type = SG_UNIFORMTYPE_FLOAT},
-                .size = 3 * sizeof(float),
+        .vertex_func = {.source = vs_src},
+        .fragment_func = {.source = fs_src},
+        .uniform_blocks[0] = {
+            .stage = any_stage,
+            .size = sizeof(float[16 * 2 + 3]),
+            .glsl_uniforms = {
+                {.glsl_name = "u_local_to_clip", .type = SG_UNIFORMTYPE_MAT4},
+                {.glsl_name = "u_local_to_view", .type = SG_UNIFORMTYPE_MAT4},
+                {.glsl_name = "u_spacing", .type = SG_UNIFORMTYPE_FLOAT},
+                {.glsl_name = "u_width", .type = SG_UNIFORMTYPE_FLOAT},
+                {.glsl_name = "u_offset", .type = SG_UNIFORMTYPE_FLOAT},
             },
         },
     };

@@ -19,7 +19,6 @@ struct AssetHandle
         Mesh_ChenGackstatter,
         Mesh_NodeCluster,
         Mesh_Armadillo,
-        // Mesh_Custom, // TODO(dr)
         _Mesh_Count,
     };
 
@@ -77,16 +76,23 @@ struct ShaderAsset
     String src{};
 };
 
+struct AssetMeta
+{
+    char const* name;
+    char const* path;
+    char const* link_url{};
+};
+
 MeshAsset const* get_asset(AssetHandle::Mesh const handle, bool const force_reload = false);
-
-void release_asset(AssetHandle::Mesh const handle);
-
 ImageAsset const* get_asset(AssetHandle::Image const handle, bool const force_reload = false);
-
-void release_asset(AssetHandle::Image const handle);
-
 ShaderAsset const* get_asset(AssetHandle::Shader const handle, bool const force_reload = false);
 
+AssetMeta const& get_asset_meta(AssetHandle::Mesh const handle);
+AssetMeta const& get_asset_meta(AssetHandle::Image const handle);
+AssetMeta const& get_asset_meta(AssetHandle::Shader const handle);
+
+void release_asset(AssetHandle::Mesh const handle);
+void release_asset(AssetHandle::Image const handle);
 void release_asset(AssetHandle::Shader const handle);
 
 void release_all_assets();

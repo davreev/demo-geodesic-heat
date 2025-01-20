@@ -18,8 +18,8 @@
 #include <dr/app/thread_pool.hpp>
 
 #include "assets.hpp"
-#include "graphics.hpp"
 #include "tasks.hpp"
+#include "viewer.hpp"
 
 namespace dr
 {
@@ -47,19 +47,13 @@ struct {
     char const* author = "David Reeves";
     struct {
         u16 major{0};
-        u16 minor{6};
+        u16 minor{7};
         u16 patch{0};
     } version;
 } constexpr scene_info{};
 
 struct {
-    struct {
-        RenderMesh mesh;
-        struct {
-            ContourColor contour_color;
-            ContourLine contour_line;
-        } materials;
-    } gfx;
+    Viewer viewer;
 
     MeshAsset const* mesh;
     DynamicArray<i32> source_vertices;
@@ -73,23 +67,6 @@ struct {
     } tasks;
 
     struct {
-        f32 fov_y{deg_to_rad(60.0f)};
-        f32 clip_near{0.01f};
-        f32 clip_far{100.0f};
-    } view;
-
-    EasedOrbit orbit{{pi<f32> * -0.25f, pi<f32> * 0.25f}};
-    EasedZoom zoom{{3.0f, 1.0f, view.clip_near, view.clip_far}};
-    EasedPan pan;
-    Camera camera{make_camera(orbit.current, zoom.current)};
-
-    struct {
-        Vec2<f32> last_touch_points[2];
-        i8 last_num_touches;
-        bool mouse_down[3];
-    } input;
-    
-    struct {
         AssetHandle::Mesh mesh_handle;
         DisplayMode display_mode;
         Param<i32> num_sources{1, 1, 10};
@@ -102,14 +79,6 @@ struct {
     } params;
 } state{};
 // clang-format on
-
-void center_camera(Vec3<f32> const& point = {}, f32 const radius = 1.0f)
-{
-    constexpr f32 pad_scale{1.2f};
-    state.camera.pivot.position = point;
-    state.zoom.target.distance = radius * pad_scale / std::sin(state.view.fov_y * 0.5);
-    state.pan.target.offset = {};
-}
 
 void append_source_vertices()
 {
@@ -136,17 +105,33 @@ void set_mesh(MeshAsset const* mesh)
         reset_source_vertices();
     }
 
-    // Update the render mesh
+    // Update viewer geometry
     {
-        auto& render_mesh = state.gfx.mesh;
-        render_mesh.set_indices(as_span(mesh->faces.vertex_ids));
-        render_mesh.set_vertices(
-            as_span(mesh->vertices.positions),
-            as_span(mesh->vertices.normals));
-
-        // Set default function using asset tex coords
-        render_mesh.set_vertices({mesh->vertices.tex_coords.data(), mesh->vertices.count()});
+        auto& geom = state.viewer.meshes[0];
+        geom.set_indices(as_span(mesh->faces.vertex_ids));
+        geom.set_vertices(as_span(mesh->vertices.positions), as_span(mesh->vertices.normals));
     }
+
+    // Update viewer instance
+    {
+        auto& inst = state.viewer.mesh_plot_instances[0];
+        inst.mesh_plot = nullptr;
+
+        // Fit to unit sphere in world space
+        auto const& [cen, rad] = mesh->bounds;
+        f32 const s = 1.0f / rad;
+        inst.transform.translation = -cen * s;
+        inst.transform.scale = s;
+    }
+}
+
+void set_plot(Span<f32 const> const& values)
+{
+    auto& plot = state.viewer.mesh_plots[0];
+    plot.set_scalars(values);
+
+    auto& inst = state.viewer.mesh_plot_instances[0];
+    inst.mesh_plot = &plot;
 }
 
 void schedule_task(SolveDistance& task)
@@ -167,7 +152,7 @@ void schedule_task(SolveDistance& task)
             };
             case Event::AfterComplete:
             {
-                state.gfx.mesh.set_vertices(task->output.distance);
+                set_plot(task->output.distance);
                 return true;
             };
             default:
@@ -212,33 +197,25 @@ void draw_settings_tab()
         {
             ImGui::BeginDisabled(state.task_queue.size() > 0);
 
-            static char const* const mesh_names[] = {
-                "Torus",
-                "Double torus",
-                "Triple torus",
-                "Chen-Gackstatter",
-                "Node cluster",
-                "Armadillo",
-            };
-
-            AssetHandle::Mesh const handle = state.params.mesh_handle;
-            if (ImGui::BeginCombo("Shape", mesh_names[handle]))
+            AssetHandle::Mesh const curr_handle = state.params.mesh_handle;
+            if (ImGui::BeginCombo("Shape", get_asset_meta(curr_handle).name))
             {
                 for (u8 i = 0; i < AssetHandle::_Mesh_Count; ++i)
                 {
-                    bool const is_selected = (i == handle);
-                    if (ImGui::Selectable(mesh_names[i], is_selected))
+                    AssetHandle::Mesh const handle{i};
+                    bool const is_curr = (handle == curr_handle);
+                    if (ImGui::Selectable(get_asset_meta(handle).name, is_curr))
                     {
-                        if (!is_selected)
+                        if (!is_curr)
                         {
-                            state.params.mesh_handle = AssetHandle::Mesh{i};
+                            state.params.mesh_handle = handle;
                             schedule_task(state.tasks.load_mesh_asset);
                             state.task_queue.barrier();
                             schedule_task(state.tasks.solve_distance);
                         }
                     }
 
-                    if (is_selected)
+                    if (is_curr)
                         ImGui::SetItemDefaultFocus();
                 }
 
@@ -246,7 +223,7 @@ void draw_settings_tab()
             }
 
             {
-                // NOTE(dr): Changes are only committed to global state on mouse up
+                // NOTE(dr): Changes are only committed back to state on mouse up
                 Param<i32>& p = state.params.num_sources;
                 static i32 value = p.value;
 
@@ -282,20 +259,20 @@ void draw_settings_tab()
                 "Line contour",
             };
 
-            DisplayMode const mode = state.params.display_mode;
-            if (ImGui::BeginCombo("Mode", mode_names[mode]))
+            DisplayMode const curr_mode = state.params.display_mode;
+            if (ImGui::BeginCombo("Mode", mode_names[curr_mode]))
             {
                 for (u8 i = 0; i < _DisplayMode_Count; ++i)
                 {
-                    bool const is_selected = (i == mode);
-
-                    if (ImGui::MenuItem(mode_names[i], nullptr, is_selected))
+                    DisplayMode const mode{i};
+                    bool const is_curr = (mode == curr_mode);
+                    if (ImGui::MenuItem(mode_names[i], nullptr, is_curr))
                     {
-                        if (!is_selected)
-                            state.params.display_mode = DisplayMode{i};
+                        if (!is_curr)
+                            state.params.display_mode = mode;
                     }
 
-                    if (is_selected)
+                    if (is_curr)
                         ImGui::SetItemDefaultFocus();
                 }
 
@@ -365,7 +342,10 @@ void draw_about_tab()
         ImGui::Spacing();
 
         ImGui::SeparatorText("Asset Credits");
-        ImGui::TextLinkOpenURL("Armadillo", "http://graphics.stanford.edu/data/3Dscanrep/");
+        {
+            auto const& meta = get_asset_meta(AssetHandle::Mesh_Armadillo);
+            ImGui::TextLinkOpenURL(meta.name, meta.link_url);
+        }
         ImGui::Spacing();
 
         ImGui::EndTabItem();
@@ -443,20 +423,23 @@ void debug_draw_source_normals(Mat4<f32> const& local_to_view)
     sgl_end();
 }
 
-void draw_debug(
-    Mat4<f32> const& world_to_view,
-    Mat4<f32> const& local_to_view,
-    Mat4<f32> const& view_to_clip)
+void draw_debug()
 {
+    auto const& frame = state.viewer.frame;
+
     sgl_defaults();
 
     sgl_matrix_mode_projection();
-    sgl_load_matrix(view_to_clip.data());
+    sgl_load_matrix(frame.view_to_clip.data());
 
-    debug_draw_axes(world_to_view, 0.1f);
+    debug_draw_axes(frame.world_to_view, 0.1f);
 
-    if (state.mesh)
-        debug_draw_source_normals(local_to_view);
+    auto const& inst = state.viewer.mesh_plot_instances[0];
+    if (inst.mesh_plot)
+    {
+        Mat4<f32> const local_to_world = inst.transform.to_matrix();
+        debug_draw_source_normals(frame.world_to_view * local_to_world);
+    }
 
     sgl_draw();
 }
@@ -464,7 +447,13 @@ void draw_debug(
 void open(void* /*context*/)
 {
     thread_pool_start(1);
-    init_graphics();
+
+    // Initialize viewer
+    {
+        auto& viewer = state.viewer;
+        viewer.init_default_resources();
+        viewer.mesh_plots[0].mesh = &viewer.meshes[0];
+    }
 
     // Load default mesh asset and solve
     {
@@ -473,7 +462,13 @@ void open(void* /*context*/)
         schedule_task(state.tasks.solve_distance);
     }
 
-    center_camera();
+    // Center camera on unit sphere
+    {
+        auto& view = state.viewer.view;
+        view.target.position = vec<3>(0.0f);
+        view.target.radius = 1.2f;
+        view.frame_target();
+    }
 }
 
 void close(void* /*context*/)
@@ -484,16 +479,7 @@ void close(void* /*context*/)
 
 void update(void* /*context*/)
 {
-    f32 const t = saturate(5.0 * App::delta_time_s());
-
-    state.orbit.update(t);
-    state.orbit.apply(state.camera);
-
-    state.zoom.update(t);
-    state.zoom.apply(state.camera);
-
-    state.pan.update(t);
-    state.pan.apply(state.camera);
+    state.viewer.update();
 
     if (state.params.animate)
         state.animate_time += App::delta_time();
@@ -503,33 +489,8 @@ void update(void* /*context*/)
 
 void draw(void* /*context*/)
 {
-    constexpr auto make_local_to_world = []() -> Mat4<f32> {
-        if (state.mesh)
-        {
-            // Fit to unit sphere
-            auto const& [cen, rad] = state.mesh->bounds;
-            f32 const s = 1.0f / rad;
-            return make_scale_translate(vec<3>(s), -cen * s);
-        }
-        else
-        {
-            return Mat4<f32>::Identity();
-        }
-    };
-
-    Mat4<f32> const local_to_world = make_local_to_world();
-    Mat4<f32> const world_to_view = state.camera.transform().inverse_to_matrix();
-    Mat4<f32> const local_to_view = world_to_view * local_to_world;
-    Mat4<f32> const view_to_clip = make_perspective(
-        state.view.fov_y,
-        App::aspect(),
-        state.view.clip_near,
-        state.view.clip_far);
-
-    if (state.mesh)
+    // Update material params
     {
-        sg_bindings bindings{};
-
         auto const curr_offset = []() -> f32 {
             f32 const offset = state.params.contour_offset.value;
             f32 const speed = state.params.contour_speed.value;
@@ -537,104 +498,42 @@ void draw(void* /*context*/)
             return offset + time * speed;
         };
 
-        switch (state.params.display_mode)
+        auto& inst = state.viewer.mesh_plot_instances[0];
+        inst.contour_color = nullptr;
+        inst.contour_line = nullptr;
+
+        switch(state.params.display_mode)
         {
             case DisplayMode_ContourColor:
             {
-                auto& mat = state.gfx.materials.contour_color;
-                sg_apply_pipeline(mat.pipeline());
-                mat.bind_resources(bindings);
-
-                // Update uniforms
-                as_mat<4, 4>(mat.uniforms.local_to_clip) = view_to_clip * local_to_view;
-                as_mat<4, 4>(mat.uniforms.local_to_view) = local_to_view;
-                mat.uniforms.spacing = state.params.contour_spacing.value;
-                mat.uniforms.offset = curr_offset();
-                mat.apply_uniforms();
+                auto& mat = state.viewer.contour_color_materials[0];
+                mat.spacing = state.params.contour_spacing.value;
+                mat.offset = curr_offset();
+                inst.contour_color = &mat;
                 break;
             }
             case DisplayMode_ContourLine:
             {
-                auto& mat = state.gfx.materials.contour_line;
-                sg_apply_pipeline(mat.pipeline());
-                mat.bind_resources(bindings);
-
-                // Update uniforms
-                as_mat<4, 4>(mat.uniforms.local_to_clip) = view_to_clip * local_to_view;
-                as_mat<4, 4>(mat.uniforms.local_to_view) = local_to_view;
-                mat.uniforms.spacing = state.params.contour_spacing.value;
-                mat.uniforms.width = state.params.contour_width.value;
-                mat.uniforms.offset = curr_offset();
-                mat.apply_uniforms();
+                auto& mat = state.viewer.contour_line_materials[0];
+                mat.spacing = state.params.contour_spacing.value;
+                mat.width = state.params.contour_width.value;
+                mat.offset = curr_offset();
+                inst.contour_line = &mat;
                 break;
             }
             default:
             {
+                // ...
             }
         }
-
-        // Draw geometry
-        auto const& geom = state.gfx.mesh;
-        geom.bind_resources(bindings);
-        sg_apply_bindings(bindings);
-        geom.dispatch_draw();
     }
 
-    draw_debug(world_to_view, local_to_view, view_to_clip);
+    state.viewer.draw();
+    draw_debug();
     draw_ui();
 }
 
-void handle_event(void* /*context*/, App::Event const& event)
-{
-    f32 const screen_to_view = dr::screen_to_view(state.view.fov_y, sapp_heightf());
-
-    camera_handle_mouse_event(
-        event,
-        state.zoom.target,
-        &state.orbit.target,
-        &state.pan.target,
-        screen_to_view,
-        state.input.mouse_down);
-
-    camera_handle_touch_event(
-        event,
-        state.zoom.target,
-        &state.orbit.target,
-        &state.pan.target,
-        screen_to_view,
-        state.input.last_touch_points,
-        state.input.last_num_touches);
-
-    switch (event.type)
-    {
-        case SAPP_EVENTTYPE_KEY_DOWN:
-        {
-            switch (event.key_code)
-            {
-                case SAPP_KEYCODE_F:
-                {
-                    if (is_mouse_over(event))
-                        center_camera();
-
-                    break;
-                }
-                case SAPP_KEYCODE_R:
-                {
-                    reload_shaders();
-                    break;
-                }
-                default:
-                {
-                }
-            }
-
-            break;
-        }
-        default:
-        {
-        }
-    }
-}
+void handle_event(void* /*context*/, App::Event const& event) { state.viewer.handle_event(event); }
 
 } // namespace
 

@@ -1,4 +1,4 @@
-#include "graphics.h"
+#include "viewer.h"
 
 #include <assert.h>
 
@@ -11,14 +11,20 @@ sg_shader_desc contour_color_shader_desc(char const* const vs_src, char const* c
     return (sg_shader_desc) {
         .vertex_func = {.source = vs_src},
         .fragment_func = {.source = fs_src},
-        .uniform_blocks[0] = {
+        .uniform_blocks[UniformBlock_Material] = {
             .stage = any_stage,
-            .size = sizeof(float[16 * 2 + 2]),
+            .size = sizeof(float[2]),
+            .glsl_uniforms = {
+                {.glsl_name = "u_spacing", .type = SG_UNIFORMTYPE_FLOAT},
+                {.glsl_name = "u_offset", .type = SG_UNIFORMTYPE_FLOAT},
+            },
+        },
+        .uniform_blocks[UniformBlock_Instance] = {
+            .stage = any_stage,
+            .size = sizeof(float[16 * 2]),
             .glsl_uniforms = {
                 {.glsl_name = "u_local_to_clip", .type = SG_UNIFORMTYPE_MAT4},
                 {.glsl_name = "u_local_to_view", .type = SG_UNIFORMTYPE_MAT4},
-                {.glsl_name = "u_spacing", .type = SG_UNIFORMTYPE_FLOAT},
-                {.glsl_name = "u_offset", .type = SG_UNIFORMTYPE_FLOAT},
             },
         },
         .images[0] = {.stage = any_stage},
@@ -61,15 +67,21 @@ sg_shader_desc contour_line_shader_desc(char const* const vs_src, char const* co
     return (sg_shader_desc) {
         .vertex_func = {.source = vs_src},
         .fragment_func = {.source = fs_src},
-        .uniform_blocks[0] = {
+        .uniform_blocks[UniformBlock_Material] = {
             .stage = any_stage,
-            .size = sizeof(float[16 * 2 + 3]),
+            .size = sizeof(float[3]),
             .glsl_uniforms = {
-                {.glsl_name = "u_local_to_clip", .type = SG_UNIFORMTYPE_MAT4},
-                {.glsl_name = "u_local_to_view", .type = SG_UNIFORMTYPE_MAT4},
                 {.glsl_name = "u_spacing", .type = SG_UNIFORMTYPE_FLOAT},
                 {.glsl_name = "u_width", .type = SG_UNIFORMTYPE_FLOAT},
                 {.glsl_name = "u_offset", .type = SG_UNIFORMTYPE_FLOAT},
+            },
+        },
+        .uniform_blocks[UniformBlock_Instance] = {
+            .stage = any_stage,
+            .size = sizeof(float[16 * 2]),
+            .glsl_uniforms = {
+                {.glsl_name = "u_local_to_clip", .type = SG_UNIFORMTYPE_MAT4},
+                {.glsl_name = "u_local_to_view", .type = SG_UNIFORMTYPE_MAT4},
             },
         },
     };
@@ -103,7 +115,7 @@ sg_pipeline_desc contour_line_pipeline_desc(sg_shader const shader)
     // clang-format on
 }
 
-sg_buffer_desc vertex_buffer_desc(size_t const size)
+sg_buffer_desc mesh_vertex_buffer_desc(size_t const size)
 {
     return (sg_buffer_desc){
         .size = size,
@@ -112,7 +124,7 @@ sg_buffer_desc vertex_buffer_desc(size_t const size)
     };
 }
 
-sg_buffer_desc index_buffer_desc(size_t const size)
+sg_buffer_desc mesh_index_buffer_desc(size_t const size)
 {
     return (sg_buffer_desc){
         .size = size,
@@ -121,7 +133,19 @@ sg_buffer_desc index_buffer_desc(size_t const size)
     };
 }
 
-sg_image_desc matcap_image_desc(void const* const data, int const width, int const height)
+sg_buffer_desc mesh_plot_buffer_desc(size_t const size)
+{
+    return (sg_buffer_desc){
+        .size = size,
+        .type = SG_BUFFERTYPE_VERTEXBUFFER,
+        .usage = SG_USAGE_DYNAMIC,
+    };
+}
+
+sg_image_desc contour_color_matcap_image_desc(
+    void const* const data,
+    int const width,
+    int const height)
 {
     return (sg_image_desc){
         .width = width,
@@ -136,7 +160,7 @@ sg_image_desc matcap_image_desc(void const* const data, int const width, int con
     };
 }
 
-sg_sampler_desc matcap_sampler_desc(void)
+sg_sampler_desc contour_color_matcap_sampler_desc(void)
 {
     return (sg_sampler_desc){
         .min_filter = SG_FILTER_LINEAR,

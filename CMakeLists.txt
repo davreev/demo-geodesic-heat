@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.14)
 project(
     geodesic-heat
-    VERSION 0.6.0
+    VERSION 0.7.0
     LANGUAGES C CXX
 )
 
@@ -29,8 +29,8 @@ set(app_name geodesic-heat)
 add_executable(
     ${app_name}
     "src/assets.cpp"
-    "src/graphics.c"
-    "src/graphics.cpp"
+    "src/viewer.c"
+    "src/viewer.cpp"
     "src/impl.cpp"
     "src/main.cpp"
     "src/scene.cpp"

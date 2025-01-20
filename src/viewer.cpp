@@ -61,6 +61,12 @@ struct Default<Viewer::ContourColorMaterial>
             assert(matcap.sampler.is_valid());
         }
     };
+
+    static Default& get()
+    {
+        static Default instance{};
+        return instance;
+    }
 };
 
 template <>
@@ -91,18 +97,18 @@ struct Default<Viewer::ContourLineMaterial>
         pipeline = GfxPipeline::make(contour_line_pipeline_desc(shader));
         assert(pipeline.is_valid());
     };
-};
 
-struct
-{
-    Default<Viewer::ContourColorMaterial> contour_color_material{};
-    Default<Viewer::ContourLineMaterial> contour_line_material{};
-} defaults;
+    static Default& get()
+    {
+        static Default instance{};
+        return instance;
+    }
+};
 
 void reload_default_shaders()
 {
-    defaults.contour_color_material.init_shader();
-    defaults.contour_line_material.init_shader();
+    Default<Viewer::ContourColorMaterial>::get().init_shader();
+    Default<Viewer::ContourLineMaterial>::get().init_shader();
     // ...
 }
 
@@ -171,21 +177,21 @@ struct DrawContext<Viewer::MeshPlotInstance> : DrawContext<>
 
     bool apply_pipeline(Viewer::ContourColorMaterial const& mat)
     {
-        return DrawContext<>::apply_pipeline(
-            valid_or(mat.pipeline, defaults.contour_color_material.pipeline));
+        auto const& def = Default<Viewer::ContourColorMaterial>::get();
+        return DrawContext<>::apply_pipeline(valid_or(mat.pipeline, def.pipeline));
     }
 
     bool apply_pipeline(Viewer::ContourLineMaterial const& mat)
     {
-        return DrawContext<>::apply_pipeline(
-            valid_or(mat.pipeline, defaults.contour_line_material.pipeline));
+        auto const& def = Default<Viewer::ContourLineMaterial>::get();
+        return DrawContext<>::apply_pipeline(valid_or(mat.pipeline, def.pipeline));
     }
 
     void bind_resources(Viewer::ContourColorMaterial const& mat)
     {
-        auto const& defs = defaults.contour_color_material;
-        bindings.images[0] = valid_or(mat.matcap.image, defs.matcap.image);
-        bindings.samplers[0] = valid_or(mat.matcap.sampler, defs.matcap.sampler);
+        auto const& def = Default<Viewer::ContourColorMaterial>::get();
+        bindings.images[0] = valid_or(mat.matcap.image, def.matcap.image);
+        bindings.samplers[0] = valid_or(mat.matcap.sampler, def.matcap.sampler);
     }
 
     void bind_resources(Viewer::ContourLineMaterial const&)
@@ -320,8 +326,8 @@ void init_buffer(GfxBuffer& buf, GfxBuffer::Desc const& desc)
 
 void Viewer::init_default_resources()
 {
-    defaults.contour_color_material.init();
-    defaults.contour_line_material.init();
+    Default<Viewer::ContourColorMaterial>::get().init();
+    Default<Viewer::ContourLineMaterial>::get().init();
 }
 
 void Viewer::update()

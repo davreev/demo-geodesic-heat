@@ -1,10 +1,7 @@
 #pragma once
 
 #include <dr/basic_types.hpp>
-#include <dr/geometry_types.hpp>
-#include <dr/grid.hpp>
 #include <dr/math_types.hpp>
-#include <dr/result.hpp>
 
 #include <dr/app/app.hpp>
 #include <dr/app/camera.hpp>

@@ -1,7 +1,5 @@
 #include "scene.hpp"
 
-#include <cmath>
-
 #include <sokol_gl.h>
 #include <sokol_time.h>
 
@@ -9,10 +7,7 @@
 #include <dr/random.hpp>
 #include <dr/span.hpp>
 
-#include <dr/app/camera.hpp>
 #include <dr/app/debug_draw.hpp>
-#include <dr/app/event_handlers.hpp>
-#include <dr/app/gfx_utils.hpp>
 #include <dr/app/shim/imgui.hpp>
 #include <dr/app/task_queue.hpp>
 #include <dr/app/thread_pool.hpp>

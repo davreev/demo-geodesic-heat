@@ -78,7 +78,7 @@ bool read_mesh_ply(char const* path, MeshAsset& asset)
 
             // Vertex IDs
             {
-                // NOTE(dr): We check a few different naming conventions here
+                // NOTE(dr): Checking for a few different naming conventions here
                 static constexpr char const* prop_names[]{
                     "vertex_indices", // Used by Blender and Houdini
                     "vertex_index", // Used by Rhino

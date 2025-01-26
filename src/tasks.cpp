@@ -47,7 +47,7 @@ void SolveDistance::operator()()
             as_span(input.mesh->vertices.positions),
             as_span(input.mesh->faces.vertex_ids));
 
-        // NOTE(dr): Solve tends to fail for values less than this
+        // NOTE(dr): Solve tends to fail for values less than this when using single precision
         constexpr f32 min_time = 0.005f;
         f32 const time = max(mean_edge_len * mean_edge_len, min_time);
 

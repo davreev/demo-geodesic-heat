@@ -30,7 +30,7 @@ struct Viewer
     {
         GfxPipeline::Handle pipeline;
         f32 spacing;
-        f32 width;
+        f32 line_width;
         f32 offset;
 
         static GfxPipeline make_custom_pipeline(GfxShader::Handle shader);
@@ -71,9 +71,12 @@ struct Viewer
     struct MeshPlotInstance
     {
         Conformal3<f32> transform;
-        MeshPlotGeometry const* mesh_plot;
-        ContourColorMaterial const* contour_color;
-        ContourLineMaterial const* contour_line;
+        MeshPlotGeometry const* geometry;
+        struct
+        {
+            ContourColorMaterial const* contour_color;
+            ContourLineMaterial const* contour_line;
+        } materials;
     };
 
     struct View

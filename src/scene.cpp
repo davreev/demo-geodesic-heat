@@ -30,13 +30,6 @@ struct Param
     Scalar max{};
 };
 
-enum DisplayMode : u8
-{
-    DisplayMode_ContourColor = 0,
-    DisplayMode_ContourLine,
-    _DisplayMode_Count,
-};
-
 // clang-format off
 struct {
     char const* name = "Geodesic Heat";
@@ -71,13 +64,14 @@ struct {
 
     struct {
         AssetHandle::Mesh mesh_handle;
-        DisplayMode display_mode;
         Param<i32> num_sources{1, 1, 10};
         Param<f32> solve_time{0.002f, 0.001f, 0.01f};
         Param<f32> contour_spacing{0.1f, 0.0f, 1.0f};
-        Param<f32> contour_width{0.3f, 0.0f, 1.0f};
+        Param<f32> contour_line_width{0.3f, 0.0f, 1.0f};
         Param<f32> contour_speed{0.1f, 0.0f, 1.0f};
         Param<f32> contour_offset{0.0f, 0.0f, 1.0f};
+        bool show_color_contour{true};
+        bool show_line_contour{true};
         bool animate{true};
     } params;
 } state{};
@@ -118,7 +112,7 @@ void set_mesh(MeshAsset const* mesh)
     // Update mesh plot instance
     {
         auto& inst = state.scene.mesh_plot_instances[0];
-        inst.mesh_plot = nullptr;
+        inst.geometry = nullptr;
 
         // Fit to unit sphere in world space
         auto const& [cen, rad] = mesh->bounds;
@@ -134,7 +128,7 @@ void set_plot(Span<f32 const> const& values)
     plot.set_scalars(values);
 
     auto& inst = state.scene.mesh_plot_instances[0];
-    inst.mesh_plot = &plot;
+    inst.geometry = &plot;
 }
 
 void schedule_task(SolveDistance& task)
@@ -257,41 +251,15 @@ void draw_settings_tab()
 
         ImGui::SeparatorText("Display");
         {
-            static char const* mode_names[_DisplayMode_Count]{
-                "Color contour",
-                "Line contour",
-            };
-
-            DisplayMode const curr_mode = state.params.display_mode;
-            if (ImGui::BeginCombo("Mode", mode_names[curr_mode]))
-            {
-                for (u8 i = 0; i < _DisplayMode_Count; ++i)
-                {
-                    DisplayMode const mode{i};
-                    bool const is_curr = (mode == curr_mode);
-                    if (ImGui::MenuItem(mode_names[i], nullptr, is_curr))
-                    {
-                        if (!is_curr)
-                            state.params.display_mode = mode;
-                    }
-
-                    if (is_curr)
-                        ImGui::SetItemDefaultFocus();
-                }
-
-                ImGui::EndCombo();
-            }
-
             {
                 Param<f32>& p = state.params.contour_spacing;
                 ImGui::SliderFloat("Contour spacing", &p.value, p.min, p.max, "%.3f");
             }
 
 #if false
-            if(mode == DisplayMode_ContourLine)
             {
-                Param<f32>& p = state.params.contour_width;
-                ImGui::SliderFloat("Contour width", &p.value, p.min, p.max, "%.3f");
+                Param<f32>& p = state.params.contour_line_width;
+                ImGui::SliderFloat("Contour line width", &p.value, p.min, p.max, "%.3f");
             }
 #endif
 
@@ -306,6 +274,8 @@ void draw_settings_tab()
                 ImGui::SliderFloat("Contour offset", &p.value, p.min, p.max, "%.3f");
             }
 
+            ImGui::Checkbox("Show color contour", &state.params.show_color_contour);
+            ImGui::Checkbox("Show line contour", &state.params.show_line_contour);
             ImGui::Checkbox("Animate", &state.params.animate);
         }
         ImGui::Spacing();
@@ -438,7 +408,7 @@ void draw_debug()
     debug_draw_axes(frame.world_to_view, 0.1f);
 
     auto const& inst = state.scene.mesh_plot_instances[0];
-    if (inst.mesh_plot)
+    if (inst.geometry)
     {
         Mat4<f32> const local_to_world = inst.transform.to_matrix();
         debug_draw_source_normals(frame.world_to_view * local_to_world);
@@ -459,15 +429,8 @@ void open(void* /*context*/)
         scene.mesh_plots[0].mesh = &scene.meshes[0];
 
         auto& inst = scene.mesh_plot_instances[0];
-        inst.contour_color = &scene.contour_color_material;
-        inst.contour_line = &scene.contour_line_material;
-    }
-
-    // Load default mesh asset and solve
-    {
-        schedule_task(state.tasks.load_mesh_asset);
-        state.task_queue.barrier();
-        schedule_task(state.tasks.solve_distance);
+        inst.materials.contour_color = &scene.contour_color_material;
+        inst.materials.contour_line = &scene.contour_line_material;
     }
 
     // Center camera on unit sphere
@@ -476,6 +439,13 @@ void open(void* /*context*/)
         view.target.position = vec<3>(0.0f);
         view.target.radius = 1.2f;
         view.frame_target();
+    }
+
+    // Load default mesh asset and solve
+    {
+        schedule_task(state.tasks.load_mesh_asset);
+        state.task_queue.barrier();
+        schedule_task(state.tasks.solve_distance);
     }
 }
 
@@ -499,34 +469,22 @@ void draw(void* /*context*/)
 {
     // Update material params
     {
-        auto const curr_offset = []() -> f32 {
-            f32 const offset = state.params.contour_offset.value;
-            f32 const speed = state.params.contour_speed.value;
-            f32 const time = stm_sec(state.animate_time);
-            return offset + time * speed;
-        };
+        f32 const offset = state.params.contour_offset.value;
+        f32 const speed = state.params.contour_speed.value;
+        f32 const time = stm_sec(state.animate_time);
+        f32 const offset_now = offset + time * speed;
 
-        switch (state.params.display_mode)
         {
-            case DisplayMode_ContourColor:
-            {
-                auto& mat = state.scene.contour_color_material;
-                mat.spacing = state.params.contour_spacing.value;
-                mat.offset = curr_offset();
-                break;
-            }
-            case DisplayMode_ContourLine:
-            {
-                auto& mat = state.scene.contour_line_material;
-                mat.spacing = state.params.contour_spacing.value;
-                mat.width = state.params.contour_width.value;
-                mat.offset = curr_offset();
-                break;
-            }
-            default:
-            {
-                // ...
-            }
+            auto& mat = state.scene.contour_color_material;
+            mat.spacing = state.params.contour_spacing.value;
+            mat.offset = offset_now;
+        }
+
+        {
+            auto& mat = state.scene.contour_line_material;
+            mat.spacing = state.params.contour_spacing.value;
+            mat.line_width = state.params.contour_line_width.value;
+            mat.offset = offset_now;
         }
     }
 
@@ -535,27 +493,11 @@ void draw(void* /*context*/)
         using Geometry = Viewer::MeshPlotGeometry;
         auto const instances = as_span(state.scene.mesh_plot_instances).as_const();
 
-        // TODO(dr): Combine display modes
+        if (state.params.show_color_contour)
+            state.viewer.draw<Viewer::ContourColorMaterial, Geometry>(instances);
 
-        switch (state.params.display_mode)
-        {
-            case DisplayMode_ContourColor:
-            {
-                using Material = Viewer::ContourColorMaterial;
-                state.viewer.draw<Material, Geometry>(instances);
-                break;
-            }
-            case DisplayMode_ContourLine:
-            {
-                using Material = Viewer::ContourLineMaterial;
-                state.viewer.draw<Material, Geometry>(instances);
-                break;
-            }
-            default:
-            {
-                // ...
-            }
-        }
+        if (state.params.show_line_contour)
+            state.viewer.draw<Viewer::ContourLineMaterial, Geometry>(instances);
     }
 
     draw_debug();

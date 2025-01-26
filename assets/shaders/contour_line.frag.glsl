@@ -1,7 +1,7 @@
 #version 330 core
 
 uniform float u_spacing;
-uniform float u_width;
+uniform float u_line_width;
 uniform float u_offset;
 
 in vec3 v_view_position;
@@ -42,13 +42,13 @@ void main()
     
     col = draw_contour(
         4.0 * f,
-        u_width,
+        u_line_width,
         vec4(vec3(0.85), gl_FrontFacing? 0.1 : 0.5), 
         col);
 
     col = draw_contour(
         f,
-        1.5 * u_width,
+        1.5 * u_line_width,
         vec4(vec3(0.85), gl_FrontFacing? 0.2 : 1.0), 
         col);
 

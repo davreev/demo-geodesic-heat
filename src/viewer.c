@@ -72,7 +72,7 @@ sg_shader_desc contour_line_shader_desc(char const* const vs_src, char const* co
             .size = sizeof(float[3]),
             .glsl_uniforms = {
                 {.glsl_name = "u_spacing", .type = SG_UNIFORMTYPE_FLOAT},
-                {.glsl_name = "u_width", .type = SG_UNIFORMTYPE_FLOAT},
+                {.glsl_name = "u_line_width", .type = SG_UNIFORMTYPE_FLOAT},
                 {.glsl_name = "u_offset", .type = SG_UNIFORMTYPE_FLOAT},
             },
         },
@@ -99,7 +99,7 @@ sg_pipeline_desc contour_line_pipeline_desc(sg_shader const shader)
             .attrs[2] = {.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT},
         },
         .depth = {
-            .compare = SG_COMPAREFUNC_ALWAYS,
+            .compare = SG_COMPAREFUNC_LESS_EQUAL,
             .write_enabled = false,
         },
         .colors[0] = {

@@ -108,13 +108,13 @@ Material const* instance_material(Instance const&);
 template <>
 Viewer::ContourColorMaterial const* instance_material(Viewer::MeshPlotInstance const& inst)
 {
-    return inst.contour_color;
+    return inst.materials.contour_color;
 }
 
 template <>
 Viewer::ContourLineMaterial const* instance_material(Viewer::MeshPlotInstance const& inst)
 {
-    return inst.contour_line;
+    return inst.materials.contour_line;
 }
 
 // Specialize for valid instance/geometry permutations
@@ -124,13 +124,11 @@ Geometry const* instance_geometry(Instance const&);
 template <>
 Viewer::MeshPlotGeometry const* instance_geometry(Viewer::MeshPlotInstance const& inst)
 {
-    return inst.mesh_plot;
+    return inst.geometry;
 }
 
 struct DrawContext
 {
-    using Instance = Viewer::MeshPlotInstance;
-
     Viewer::Frame const* frame{};
     GfxPipeline::Handle pipeline{};
     sg_bindings bindings{};
@@ -198,12 +196,12 @@ struct DrawContext
         struct
         {
             float spacing;
-            float width;
+            float line_width;
             float offset;
         } u;
 
         u.spacing = mat.spacing;
-        u.width = mat.width;
+        u.line_width = mat.line_width;
         u.offset = mat.offset;
         sg_apply_uniforms(UniformBlock_Material, {&u, sizeof(u)});
     }
@@ -213,24 +211,24 @@ struct DrawContext
         // ...
     }
 
-    void draw(Instance const& inst)
+    void apply_uniforms(Viewer::MeshPlotInstance const& inst)
     {
-        // Update instance uniform block
+        Mat4<f32> const local_to_world = inst.transform.to_matrix();
+
+        struct
         {
-            Mat4<f32> const local_to_world = inst.transform.to_matrix();
+            f32 local_to_clip[16];
+            f32 local_to_view[16];
+        } u;
 
-            struct
-            {
-                f32 local_to_clip[16];
-                f32 local_to_view[16];
-            } u;
+        as_mat<4, 4>(u.local_to_clip) = frame->world_to_clip * local_to_world;
+        as_mat<4, 4>(u.local_to_view) = frame->world_to_view * local_to_world;
+        sg_apply_uniforms(UniformBlock_Instance, {&u, sizeof(u)});
+    }
 
-            as_mat<4, 4>(u.local_to_clip) = frame->world_to_clip * local_to_world;
-            as_mat<4, 4>(u.local_to_view) = frame->world_to_view * local_to_world;
-            sg_apply_uniforms(UniformBlock_Instance, {&u, sizeof(u)});
-        }
-
-        const isize num_indices = inst.mesh_plot->mesh->indices.count;
+    void draw(Viewer::MeshPlotInstance const& inst)
+    {
+        const isize num_indices = inst.geometry->mesh->indices.count;
         sg_draw(0, num_indices, 1);
     }
 };
@@ -276,6 +274,7 @@ void draw_impl(DrawContext ctx, Span<Instance const> instances)
             ctx.apply_bindings();
 
         // Draw instance
+        ctx.apply_uniforms(inst);
         ctx.draw(inst);
     }
 }
@@ -349,14 +348,14 @@ template <>
 void Viewer::draw<Viewer::ContourColorMaterial, Viewer::MeshPlotGeometry>(
     Span<MeshPlotInstance const> const& instances) const
 {
-    draw_impl<Viewer::ContourColorMaterial, Viewer::MeshPlotGeometry>({*this}, instances);
+    draw_impl<ContourColorMaterial, MeshPlotGeometry>({*this}, instances);
 }
 
 template <>
 void Viewer::draw<Viewer::ContourLineMaterial, Viewer::MeshPlotGeometry>(
     Span<MeshPlotInstance const> const& instances) const
 {
-    draw_impl<Viewer::ContourLineMaterial, Viewer::MeshPlotGeometry>({*this}, instances);
+    draw_impl<ContourLineMaterial, MeshPlotGeometry>({*this}, instances);
 }
 
 void Viewer::handle_event(App::Event const& event)

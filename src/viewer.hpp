@@ -117,26 +117,18 @@ struct Viewer
         bool mouse_down[3];
     };
 
-    static constexpr i8 num_material_slots = 8;
-    static constexpr i8 num_geometry_slots = 8;
-    static constexpr i8 num_instance_slots = 8;
-
-    ContourColorMaterial contour_color_materials[num_material_slots];
-    ContourLineMaterial contour_line_materials[num_material_slots];
-    MeshGeometry meshes[num_geometry_slots];
-    MeshPlotGeometry mesh_plots[num_geometry_slots];
-    MeshPlotInstance mesh_plot_instances[num_instance_slots];
     View view;
     Frame frame;
     Input input;
 
-    /// Initializes default resources shared by all viewer instances. Must be called before any
-    /// calls to Viewer::draw.
     static void init_default_resources();
+
+    static void reload_default_shaders();
 
     void update();
 
-    void draw() const;
+    template <typename Material, typename Geometry, typename Instance>
+    void draw(Span<Instance const> const& instances) const;
 
     void handle_event(App::Event const& event);
 };

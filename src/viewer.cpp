@@ -14,20 +14,20 @@ namespace
 {
 
 template <typename T>
-struct Default;
+struct DefaultResources;
 
 template <>
-struct Default<Viewer::ContourColorMaterial>
+struct DefaultResources<Viewer::ContourColorMaterial>
 {
-    GfxPipeline pipeline;
-    GfxShader shader;
+    static inline GfxPipeline pipeline;
+    static inline GfxShader shader;
     struct
     {
         GfxImage image;
         GfxSampler sampler;
-    } matcap;
+    } inline static matcap;
 
-    void init_shader()
+    static void init_shader()
     {
         ShaderAsset const* vs = get_asset(AssetHandle::Shader_ContourColorVert, true);
         assert(vs);
@@ -39,7 +39,7 @@ struct Default<Viewer::ContourColorMaterial>
         assert(shader.is_valid());
     };
 
-    void init()
+    static void init()
     {
         assert(!pipeline.is_valid());
 
@@ -61,21 +61,15 @@ struct Default<Viewer::ContourColorMaterial>
             assert(matcap.sampler.is_valid());
         }
     };
-
-    static Default& get()
-    {
-        static Default instance{};
-        return instance;
-    }
 };
 
 template <>
-struct Default<Viewer::ContourLineMaterial>
+struct DefaultResources<Viewer::ContourLineMaterial>
 {
-    GfxPipeline pipeline;
-    GfxShader shader;
+    inline static GfxPipeline pipeline;
+    inline static GfxShader shader;
 
-    void init_shader()
+    static void init_shader()
     {
         ShaderAsset const* vs = get_asset(AssetHandle::Shader_ContourLineVert, true);
         assert(vs);
@@ -87,7 +81,7 @@ struct Default<Viewer::ContourLineMaterial>
         assert(shader.is_valid());
     };
 
-    void init()
+    static void init()
     {
         assert(!pipeline.is_valid());
 
@@ -97,39 +91,51 @@ struct Default<Viewer::ContourLineMaterial>
         pipeline = GfxPipeline::make(contour_line_pipeline_desc(shader));
         assert(pipeline.is_valid());
     };
-
-    static Default& get()
-    {
-        static Default instance{};
-        return instance;
-    }
 };
-
-void reload_default_shaders()
-{
-    Default<Viewer::ContourColorMaterial>::get().init_shader();
-    Default<Viewer::ContourLineMaterial>::get().init_shader();
-    // ...
-}
 
 // Returns the given handle if it's valid. Otherwise, returns a handle to the given default
 // resource.
-template <typename Handle, typename Resource>
-Handle const valid_or(Handle const handle, Resource const& resource)
+template <typename Handle>
+Handle const valid_or(Handle const handle, Handle const& other)
 {
-    return (handle.id == SG_INVALID_ID) ? resource.handle() : handle;
+    return (handle.id == SG_INVALID_ID) ? other : handle;
 }
 
-template <typename T>
-struct Tag
-{
-};
+// Specialize for valid instance/material permutations
+template <typename Material, typename Instance>
+Material const* instance_material(Instance const&);
 
-template <typename Instance = void>
+template <>
+Viewer::ContourColorMaterial const* instance_material(Viewer::MeshPlotInstance const& inst)
+{
+    return inst.contour_color;
+}
+
+template <>
+Viewer::ContourLineMaterial const* instance_material(Viewer::MeshPlotInstance const& inst)
+{
+    return inst.contour_line;
+}
+
+// Specialize for valid instance/geometry permutations
+template <typename Geometry, typename Instance>
+Geometry const* instance_geometry(Instance const&);
+
+template <>
+Viewer::MeshPlotGeometry const* instance_geometry(Viewer::MeshPlotInstance const& inst)
+{
+    return inst.mesh_plot;
+}
+
 struct DrawContext
 {
+    using Instance = Viewer::MeshPlotInstance;
+
+    Viewer::Frame const* frame{};
     GfxPipeline::Handle pipeline{};
     sg_bindings bindings{};
+
+    DrawContext(Viewer const& viewer) : frame{&viewer.frame} {}
 
     bool apply_pipeline(GfxPipeline::Handle const pipeline)
     {
@@ -144,54 +150,20 @@ struct DrawContext
         return false;
     }
 
+    template <typename Material>
+    bool apply_pipeline(Material const& mat)
+    {
+        using Default = DefaultResources<Material>;
+        return apply_pipeline(valid_or(mat.pipeline, Default::pipeline.handle()));
+    }
+
     void apply_bindings() { sg_apply_bindings(bindings); }
-};
-
-template <>
-struct DrawContext<Viewer::MeshPlotInstance> : DrawContext<>
-{
-    using Instance = Viewer::MeshPlotInstance;
-
-    Span<Instance const> instances{};
-    Viewer::Frame const* frame{};
-
-    DrawContext(Viewer const& viewer) :
-        instances{as_span(viewer.mesh_plot_instances)}, frame{&viewer.frame}
-    {
-    }
-
-    auto material(Instance const& inst, Tag<Viewer::ContourColorMaterial>) const
-    {
-        return inst.contour_color;
-    }
-
-    auto material(Instance const& inst, Tag<Viewer::ContourLineMaterial>) const
-    {
-        return inst.contour_line;
-    }
-
-    auto geometry(Instance const& inst, Tag<Viewer::MeshPlotGeometry>) const
-    {
-        return inst.mesh_plot;
-    }
-
-    bool apply_pipeline(Viewer::ContourColorMaterial const& mat)
-    {
-        auto const& def = Default<Viewer::ContourColorMaterial>::get();
-        return DrawContext<>::apply_pipeline(valid_or(mat.pipeline, def.pipeline));
-    }
-
-    bool apply_pipeline(Viewer::ContourLineMaterial const& mat)
-    {
-        auto const& def = Default<Viewer::ContourLineMaterial>::get();
-        return DrawContext<>::apply_pipeline(valid_or(mat.pipeline, def.pipeline));
-    }
 
     void bind_resources(Viewer::ContourColorMaterial const& mat)
     {
-        auto const& def = Default<Viewer::ContourColorMaterial>::get();
-        bindings.images[0] = valid_or(mat.matcap.image, def.matcap.image);
-        bindings.samplers[0] = valid_or(mat.matcap.sampler, def.matcap.sampler);
+        using Default = DefaultResources<Viewer::ContourColorMaterial>;
+        bindings.images[0] = valid_or(mat.matcap.image, Default::matcap.image.handle());
+        bindings.samplers[0] = valid_or(mat.matcap.sampler, Default::matcap.sampler.handle());
     }
 
     void bind_resources(Viewer::ContourLineMaterial const&)
@@ -264,18 +236,18 @@ struct DrawContext<Viewer::MeshPlotInstance> : DrawContext<>
 };
 
 template <typename Material, typename Geometry, typename Instance>
-void draw_impl(DrawContext<Instance> ctx)
+void draw_impl(DrawContext ctx, Span<Instance const> instances)
 {
     Material const* prev_mat{};
     Geometry const* prev_geom{};
 
-    for (Instance const& inst : ctx.instances)
+    for (Instance const& inst : instances)
     {
-        Material const* mat = ctx.material(inst, Tag<Material>{});
+        Material const* mat = instance_material<Material>(inst);
         if (mat == nullptr)
             continue;
 
-        Geometry const* geom = ctx.geometry(inst, Tag<Geometry>{});
+        Geometry const* geom = instance_geometry<Geometry>(inst);
         if (geom == nullptr)
             continue;
 
@@ -326,8 +298,15 @@ void init_buffer(GfxBuffer& buf, GfxBuffer::Desc const& desc)
 
 void Viewer::init_default_resources()
 {
-    Default<Viewer::ContourColorMaterial>::get().init();
-    Default<Viewer::ContourLineMaterial>::get().init();
+    DefaultResources<Viewer::ContourColorMaterial>::init();
+    DefaultResources<Viewer::ContourLineMaterial>::init();
+}
+
+void Viewer::reload_default_shaders()
+{
+    DefaultResources<Viewer::ContourColorMaterial>::init_shader();
+    DefaultResources<Viewer::ContourLineMaterial>::init_shader();
+    // ...
 }
 
 void Viewer::update()
@@ -366,76 +345,41 @@ void Viewer::update()
     }
 }
 
-void Viewer::draw() const
+template <>
+void Viewer::draw<Viewer::ContourColorMaterial, Viewer::MeshPlotGeometry>(
+    Span<MeshPlotInstance const> const& instances) const
 {
-    // TODO(dr): Sort instances by {material index, geometry index} to minimize state changes
+    draw_impl<Viewer::ContourColorMaterial, Viewer::MeshPlotGeometry>({*this}, instances);
+}
 
-    // Color contour plots
-    draw_impl<Viewer::ContourColorMaterial, Viewer::MeshPlotGeometry>(
-        DrawContext<Viewer::MeshPlotInstance>{*this});
-
-    // Line contour plots
-    draw_impl<Viewer::ContourLineMaterial, Viewer::MeshPlotGeometry>(
-        DrawContext<Viewer::MeshPlotInstance>{*this});
+template <>
+void Viewer::draw<Viewer::ContourLineMaterial, Viewer::MeshPlotGeometry>(
+    Span<MeshPlotInstance const> const& instances) const
+{
+    draw_impl<Viewer::ContourLineMaterial, Viewer::MeshPlotGeometry>({*this}, instances);
 }
 
 void Viewer::handle_event(App::Event const& event)
 {
-    // Camera controls
-    {
-        f32 const screen_to_view = dr::screen_to_view(view.frustum.fov_y, sapp_heightf());
-        auto& ctrl = view.controls;
+    f32 const screen_to_view = dr::screen_to_view(view.frustum.fov_y, sapp_heightf());
+    auto& ctrl = view.controls;
 
-        camera_handle_mouse_event(
-            event,
-            ctrl.zoom.target,
-            &ctrl.orbit.target,
-            &ctrl.pan.target,
-            screen_to_view,
-            input.mouse_down);
+    camera_handle_mouse_event(
+        event,
+        ctrl.zoom.target,
+        &ctrl.orbit.target,
+        &ctrl.pan.target,
+        screen_to_view,
+        input.mouse_down);
 
-        camera_handle_touch_event(
-            event,
-            ctrl.zoom.target,
-            &ctrl.orbit.target,
-            &ctrl.pan.target,
-            screen_to_view,
-            input.last_touch_points,
-            input.last_num_touches);
-    }
-
-    switch (event.type)
-    {
-        case SAPP_EVENTTYPE_KEY_DOWN:
-        {
-            switch (event.key_code)
-            {
-                case SAPP_KEYCODE_F:
-                {
-                    if (is_mouse_over(event))
-                        view.frame_target();
-
-                    break;
-                };
-                case SAPP_KEYCODE_R:
-                {
-                    if (is_mouse_over(event))
-                        reload_default_shaders();
-
-                    break;
-                };
-                default:
-                {
-                    // ...
-                }
-            }
-            break;
-        }
-        default:
-        {
-            // ...
-        }
-    }
+    camera_handle_touch_event(
+        event,
+        ctrl.zoom.target,
+        &ctrl.orbit.target,
+        &ctrl.pan.target,
+        screen_to_view,
+        input.last_touch_points,
+        input.last_num_touches);
 }
 
 void Viewer::MeshGeometry::set_vertices(

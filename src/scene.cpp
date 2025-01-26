@@ -8,6 +8,7 @@
 #include <dr/span.hpp>
 
 #include <dr/app/debug_draw.hpp>
+#include <dr/app/event_handlers.hpp>
 #include <dr/app/shim/imgui.hpp>
 #include <dr/app/task_queue.hpp>
 #include <dr/app/thread_pool.hpp>
@@ -49,6 +50,13 @@ struct {
 
 struct {
     Viewer viewer;
+    struct {
+        Viewer::ContourColorMaterial contour_color_material;
+        Viewer::ContourLineMaterial contour_line_material;
+        Viewer::MeshGeometry meshes[8];
+        Viewer::MeshPlotGeometry mesh_plots[8];
+        Viewer::MeshPlotInstance mesh_plot_instances[8];
+    } scene;
 
     MeshAsset const* mesh;
     DynamicArray<i32> source_vertices;
@@ -100,16 +108,16 @@ void set_mesh(MeshAsset const* mesh)
         reset_source_vertices();
     }
 
-    // Update viewer geometry
+    // Update mesh geometry
     {
-        auto& geom = state.viewer.meshes[0];
+        auto& geom = state.scene.meshes[0];
         geom.set_indices(as_span(mesh->faces.vertex_ids));
         geom.set_vertices(as_span(mesh->vertices.positions), as_span(mesh->vertices.normals));
     }
 
-    // Update viewer instance
+    // Update mesh plot instance
     {
-        auto& inst = state.viewer.mesh_plot_instances[0];
+        auto& inst = state.scene.mesh_plot_instances[0];
         inst.mesh_plot = nullptr;
 
         // Fit to unit sphere in world space
@@ -122,10 +130,10 @@ void set_mesh(MeshAsset const* mesh)
 
 void set_plot(Span<f32 const> const& values)
 {
-    auto& plot = state.viewer.mesh_plots[0];
+    auto& plot = state.scene.mesh_plots[0];
     plot.set_scalars(values);
 
-    auto& inst = state.viewer.mesh_plot_instances[0];
+    auto& inst = state.scene.mesh_plot_instances[0];
     inst.mesh_plot = &plot;
 }
 
@@ -429,7 +437,7 @@ void draw_debug()
 
     debug_draw_axes(frame.world_to_view, 0.1f);
 
-    auto const& inst = state.viewer.mesh_plot_instances[0];
+    auto const& inst = state.scene.mesh_plot_instances[0];
     if (inst.mesh_plot)
     {
         Mat4<f32> const local_to_world = inst.transform.to_matrix();
@@ -443,11 +451,16 @@ void open(void* /*context*/)
 {
     thread_pool_start(1);
 
-    // Initialize viewer
+    Viewer::init_default_resources();
+
+    // Initialize scene
     {
-        auto& viewer = state.viewer;
-        viewer.init_default_resources();
-        viewer.mesh_plots[0].mesh = &viewer.meshes[0];
+        auto& scene = state.scene;
+        scene.mesh_plots[0].mesh = &scene.meshes[0];
+
+        auto& inst = scene.mesh_plot_instances[0];
+        inst.contour_color = &scene.contour_color_material;
+        inst.contour_line = &scene.contour_line_material;
     }
 
     // Load default mesh asset and solve
@@ -493,27 +506,21 @@ void draw(void* /*context*/)
             return offset + time * speed;
         };
 
-        auto& inst = state.viewer.mesh_plot_instances[0];
-        inst.contour_color = nullptr;
-        inst.contour_line = nullptr;
-
-        switch(state.params.display_mode)
+        switch (state.params.display_mode)
         {
             case DisplayMode_ContourColor:
             {
-                auto& mat = state.viewer.contour_color_materials[0];
+                auto& mat = state.scene.contour_color_material;
                 mat.spacing = state.params.contour_spacing.value;
                 mat.offset = curr_offset();
-                inst.contour_color = &mat;
                 break;
             }
             case DisplayMode_ContourLine:
             {
-                auto& mat = state.viewer.contour_line_materials[0];
+                auto& mat = state.scene.contour_line_material;
                 mat.spacing = state.params.contour_spacing.value;
                 mat.width = state.params.contour_width.value;
                 mat.offset = curr_offset();
-                inst.contour_line = &mat;
                 break;
             }
             default:
@@ -523,12 +530,75 @@ void draw(void* /*context*/)
         }
     }
 
-    state.viewer.draw();
+    // Draw mesh plot instances
+    {
+        using Geometry = Viewer::MeshPlotGeometry;
+        auto const instances = as_span(state.scene.mesh_plot_instances).as_const();
+
+        // TODO(dr): Combine display modes
+
+        switch (state.params.display_mode)
+        {
+            case DisplayMode_ContourColor:
+            {
+                using Material = Viewer::ContourColorMaterial;
+                state.viewer.draw<Material, Geometry>(instances);
+                break;
+            }
+            case DisplayMode_ContourLine:
+            {
+                using Material = Viewer::ContourLineMaterial;
+                state.viewer.draw<Material, Geometry>(instances);
+                break;
+            }
+            default:
+            {
+                // ...
+            }
+        }
+    }
+
     draw_debug();
     draw_ui();
 }
 
-void handle_event(void* /*context*/, App::Event const& event) { state.viewer.handle_event(event); }
+void handle_event(void* /*context*/, App::Event const& event)
+{
+    state.viewer.handle_event(event);
+
+    switch (event.type)
+    {
+        case SAPP_EVENTTYPE_KEY_DOWN:
+        {
+            switch (event.key_code)
+            {
+                case SAPP_KEYCODE_F:
+                {
+                    if (is_mouse_over(event))
+                        state.viewer.view.frame_target();
+
+                    break;
+                };
+                case SAPP_KEYCODE_R:
+                {
+                    if (is_mouse_over(event))
+                        Viewer::reload_default_shaders();
+
+                    break;
+                };
+                default:
+                {
+                    // ...
+                }
+            }
+            break;
+        }
+        default:
+        {
+            // ...
+        }
+    }
+}
 
 } // namespace
 

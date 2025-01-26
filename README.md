@@ -2,6 +2,8 @@
 
 ![](https://github.com/davreev/demo-geodesic-heat/actions/workflows/build.yml/badge.svg)
 
+![](https://spatialslur.com/demos/geodesic-heat-400.png)
+
 Demo and reference implementation of [the heat method](https://www.cs.cmu.edu/~kmcrane/Projects/HeatMethod) for approximating geodesic distance on triangle meshes.
 
 Try it here: https://davreev.gitlab.io/demos/geodesic-heat/

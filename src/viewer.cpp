@@ -93,10 +93,9 @@ struct DefaultResources<Viewer::ContourLineMaterial>
     };
 };
 
-// Returns the given handle if it's valid. Otherwise, returns a handle to the given default
-// resource.
+// Returns the given handle if it's valid. Otherwise, returns the given default.
 template <typename Handle>
-Handle const valid_or(Handle const handle, Handle const& other)
+Handle const valid_or(Handle const handle, Handle const other)
 {
     return (handle.id == SG_INVALID_ID) ? other : handle;
 }
@@ -211,23 +210,23 @@ struct DrawContext
         // ...
     }
 
-    void apply_uniforms(Viewer::MeshPlotInstance const& inst)
-    {
-        Mat4<f32> const local_to_world = inst.transform.to_matrix();
-
-        struct
-        {
-            f32 local_to_clip[16];
-            f32 local_to_view[16];
-        } u;
-
-        as_mat<4, 4>(u.local_to_clip) = frame->world_to_clip * local_to_world;
-        as_mat<4, 4>(u.local_to_view) = frame->world_to_view * local_to_world;
-        sg_apply_uniforms(UniformBlock_Instance, {&u, sizeof(u)});
-    }
-
     void draw(Viewer::MeshPlotInstance const& inst)
     {
+        // Update instance uniforms
+        {
+            Mat4<f32> const local_to_world = inst.transform.to_matrix();
+
+            struct
+            {
+                f32 local_to_clip[16];
+                f32 local_to_view[16];
+            } u;
+
+            as_mat<4, 4>(u.local_to_clip) = frame->world_to_clip * local_to_world;
+            as_mat<4, 4>(u.local_to_view) = frame->world_to_view * local_to_world;
+            sg_apply_uniforms(UniformBlock_Instance, {&u, sizeof(u)});
+        }
+
         const isize num_indices = inst.geometry->mesh->indices.count;
         sg_draw(0, num_indices, 1);
     }
@@ -274,7 +273,6 @@ void draw_impl(DrawContext ctx, Span<Instance const> instances)
             ctx.apply_bindings();
 
         // Draw instance
-        ctx.apply_uniforms(inst);
         ctx.draw(inst);
     }
 }

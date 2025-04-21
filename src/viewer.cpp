@@ -129,11 +129,15 @@ Geometry const* get_geometry(Viewer::MeshPlotInstance const& inst)
 
 struct DrawContext
 {
-    Viewer::Frame const* frame{};
+    struct
+    {
+        Mat4<f32> view_to_clip;
+        Mat4<f32> world_to_view;
+        Mat4<f32> world_to_clip;
+    } transforms;
+
     GfxPipeline::Handle pipeline{};
     sg_bindings bindings{};
-
-    DrawContext(Viewer const& viewer) : frame{&viewer.frame} {}
 
     bool apply_pipeline(GfxPipeline::Handle const pipeline)
     {
@@ -156,102 +160,112 @@ struct DrawContext
     }
 
     void apply_bindings() { sg_apply_bindings(bindings); }
-
-    void bind_resources(Viewer::ContourColorMaterial const& mat)
-    {
-        using Default = DefaultResources<Viewer::ContourColorMaterial>;
-        bindings.images[0] = valid_or(mat.matcap.image, Default::matcap.image.handle());
-        bindings.samplers[0] = valid_or(mat.matcap.sampler, Default::matcap.sampler.handle());
-    }
-
-    void bind_resources(Viewer::ContourLineMaterial const&)
-    {
-        // ...
-    }
-
-    void apply_uniforms(Viewer::ContourColorMaterial const& mat)
-    {
-        struct
-        {
-            float spacing;
-            float offset;
-        } u;
-
-        u.spacing = mat.spacing;
-        u.offset = mat.offset;
-        sg_apply_uniforms(UniformBlock_Material, {&u, sizeof(u)});
-    }
-
-    void apply_uniforms(Viewer::ContourLineMaterial const& mat)
-    {
-        struct
-        {
-            float spacing;
-            float line_width;
-            float offset;
-        } u;
-
-        u.spacing = mat.spacing;
-        u.line_width = mat.line_width;
-        u.offset = mat.offset;
-        sg_apply_uniforms(UniformBlock_Material, {&u, sizeof(u)});
-    }
-
-    template <typename Material>
-    void bind_resources(Viewer::MeshPlotGeometry const& geom)
-    {
-        using OkTypes = TypePack<Viewer::ContourColorMaterial, Viewer::ContourLineMaterial>;
-
-        // NOTE(dr): Can static dispatch based on bound material type
-        static_assert(
-            OkTypes::includes<Material>,
-            "Geometry type isn't compatible with bound material type");
-
-        bindings.vertex_buffers[0] = geom.mesh->vertices.buffer;
-        bindings.vertex_buffers[1] = geom.mesh->vertices.buffer;
-        bindings.vertex_buffer_offsets[1] = geom.mesh->vertices.count * sizeof(f32[3]);
-        bindings.vertex_buffers[2] = geom.scalars.buffer;
-        bindings.index_buffer = geom.mesh->indices.buffer;
-    }
-
-    template <typename Material>
-    void apply_uniforms(Viewer::MeshPlotGeometry const&)
-    {
-        // ...
-    }
-
-    template <typename Material, typename Geometry>
-    void draw(Viewer::MeshPlotInstance const& inst)
-    {
-        using OkTypes = TypePack<
-            Viewer::ContourColorMaterial,
-            Viewer::ContourLineMaterial,
-            Viewer::MeshPlotGeometry>;
-
-        // NOTE(dr): Can static dispatch based on bound material and geometry types
-        static_assert(
-            OkTypes::includes<Material> && OkTypes::includes<Geometry>,
-            "Instance type isn't compatible with bound material or geometry type");
-
-        // Update instance uniforms
-        {
-            Mat4<f32> const local_to_world = inst.transform.to_matrix();
-
-            struct
-            {
-                f32 local_to_clip[16];
-                f32 local_to_view[16];
-            } u;
-
-            as_mat<4, 4>(u.local_to_clip) = frame->world_to_clip * local_to_world;
-            as_mat<4, 4>(u.local_to_view) = frame->world_to_view * local_to_world;
-            sg_apply_uniforms(UniformBlock_Instance, {&u, sizeof(u)});
-        }
-
-        const isize num_indices = inst.geometry->mesh->indices.count;
-        sg_draw(0, num_indices, 1);
-    }
 };
+
+void bind_resources(Viewer::ContourColorMaterial const& mat, DrawContext& ctx)
+{
+    using Default = DefaultResources<Viewer::ContourColorMaterial>;
+    ctx.bindings.images[0] = valid_or(mat.matcap.image, Default::matcap.image.handle());
+    ctx.bindings.samplers[0] = valid_or(mat.matcap.sampler, Default::matcap.sampler.handle());
+}
+
+void apply_uniforms(Viewer::ContourColorMaterial const& mat, DrawContext const& /*ctx*/)
+{
+    struct
+    {
+        float spacing;
+        float offset;
+    } u;
+
+    u.spacing = mat.spacing;
+    u.offset = mat.offset;
+    sg_apply_uniforms(UniformBlock_Material, {&u, sizeof(u)});
+}
+
+void bind_resources(Viewer::ContourLineMaterial const& /*mat*/, DrawContext& /*ctx*/)
+{
+    // ...
+}
+
+void apply_uniforms(Viewer::ContourLineMaterial const& mat, DrawContext const& /*ctx*/)
+{
+    struct
+    {
+        float spacing;
+        float line_width;
+        float offset;
+    } u;
+
+    u.spacing = mat.spacing;
+    u.line_width = mat.line_width;
+    u.offset = mat.offset;
+    sg_apply_uniforms(UniformBlock_Material, {&u, sizeof(u)});
+}
+
+template <typename Material>
+void bind_resources(Viewer::MeshPlotGeometry const& geom, DrawContext& ctx)
+{
+    using CompatMaterials = TypePack<Viewer::ContourColorMaterial, Viewer::ContourLineMaterial>;
+
+    // NOTE(dr): Can static dispatch based on bound material type
+    static_assert(
+        CompatMaterials::includes<Material>,
+        "Geometry type isn't compatible with bound material type");
+
+    ctx.bindings.vertex_buffers[0] = geom.mesh->vertices.buffer;
+    ctx.bindings.vertex_buffers[1] = geom.mesh->vertices.buffer;
+    ctx.bindings.vertex_buffer_offsets[1] = geom.mesh->vertices.count * sizeof(f32[3]);
+    ctx.bindings.vertex_buffers[2] = geom.scalars.buffer;
+    ctx.bindings.index_buffer = geom.mesh->indices.buffer;
+}
+
+template <typename Material>
+void apply_uniforms(Viewer::MeshPlotGeometry const& /*geom*/, DrawContext const& /*ctx*/)
+{
+    using CompatMaterials = TypePack<Viewer::ContourColorMaterial, Viewer::ContourLineMaterial>;
+
+    // NOTE(dr): Can static dispatch based on bound material type
+    static_assert(
+        CompatMaterials::includes<Material>,
+        "Geometry type isn't compatible with bound material type");
+
+    // No uniforms for VolumeGeometry
+    // ...
+}
+
+template <typename Material, typename Geometry>
+void draw(Viewer::MeshPlotInstance const& inst, DrawContext const& ctx)
+{
+    using CompatMaterials = TypePack<Viewer::ContourColorMaterial, Viewer::ContourLineMaterial>;
+    using CompatGeometry = TypePack<Viewer::MeshPlotGeometry>;
+
+    // NOTE(dr): Can static dispatch based on bound material and geometry types
+    static_assert(
+        CompatMaterials::includes<Material>,
+        "Instance type isn't compatible with bound material type");
+
+    static_assert(
+        CompatGeometry::includes<Geometry>,
+        "Instance type isn't compatible with bound geometry type");
+
+    // Update instance uniforms
+    {
+        Mat4<f32> const local_to_world = inst.transform.to_matrix();
+
+        struct
+        {
+            f32 local_to_clip[16];
+            f32 local_to_view[16];
+        } u;
+
+        as_mat<4, 4>(u.local_to_clip) = ctx.transforms.world_to_clip * local_to_world;
+        as_mat<4, 4>(u.local_to_view) = ctx.transforms.world_to_view * local_to_world;
+        sg_apply_uniforms(UniformBlock_Instance, {&u, sizeof(u)});
+    }
+
+    const isize num_indices = inst.geometry->mesh->indices.count;
+    sg_draw(0, num_indices, 1);
+}
 
 template <typename Material, typename Geometry, typename Instance>
 void draw_impl(DrawContext ctx, Span<Instance const> instances)
@@ -276,16 +290,16 @@ void draw_impl(DrawContext ctx, Span<Instance const> instances)
         if (mat != prev_mat)
         {
             pipeline_changed = ctx.apply_pipeline(*mat);
-            ctx.bind_resources(*mat), bindings_dirty = true;
-            ctx.apply_uniforms(*mat);
+            bind_resources(*mat, ctx), bindings_dirty = true;
+            apply_uniforms(*mat, ctx);
             prev_mat = mat;
         }
 
         // Update geometry
         if (geom != prev_geom || pipeline_changed)
         {
-            ctx.bind_resources<Material>(*geom), bindings_dirty = true;
-            ctx.apply_uniforms<Material>(*geom);
+            bind_resources<Material>(*geom, ctx), bindings_dirty = true;
+            apply_uniforms<Material>(*geom, ctx);
             prev_geom = geom;
         }
 
@@ -294,7 +308,7 @@ void draw_impl(DrawContext ctx, Span<Instance const> instances)
             ctx.apply_bindings();
 
         // Draw instance
-        ctx.draw<Material, Geometry>(inst);
+        draw<Material, Geometry>(inst, ctx);
     }
 }
 
@@ -304,12 +318,22 @@ sg_range to_range(Span<T> const& span)
     return {span.data(), span.size() * sizeof(T)};
 }
 
-void init_buffer(GfxBuffer& buf, GfxBuffer::Desc const& desc)
+template <typename Resource>
+void init_resource(Resource& buf, typename Resource::Desc const& desc)
 {
     if (buf.is_valid())
         buf.init(desc);
     else
-        buf = GfxBuffer::make(desc);
+        buf = Resource::make(desc);
+}
+
+DrawContext make_draw_context(Viewer::View const& view)
+{
+    DrawContext ctx{};
+    ctx.transforms.view_to_clip = view.transforms.view_to_clip;
+    ctx.transforms.world_to_view = view.transforms.world_to_view;
+    ctx.transforms.world_to_clip = view.transforms.world_to_clip;
+    return ctx;
 }
 
 } // namespace
@@ -327,54 +351,20 @@ void Viewer::reload_default_shaders()
     // ...
 }
 
-void Viewer::update()
-{
-    f64 const dt_s = App::delta_time_s();
-
-    // Update view
-    {
-        auto& ctrl = view.controls;
-        auto& cam = view.camera;
-
-        f32 const t = saturate(ctrl.sensitivity * dt_s);
-
-        ctrl.orbit.update(t);
-        ctrl.orbit.apply(cam);
-
-        ctrl.zoom.update(t);
-        ctrl.zoom.apply(cam);
-
-        ctrl.pan.update(t);
-        ctrl.pan.apply(cam);
-
-        cam.pivot.position += (view.target.position - cam.pivot.position) * t;
-    }
-
-    // Update frame state
-    {
-        frame.view_to_clip = make_perspective<NdcType_OpenGl>(
-            view.frustum.fov_y,
-            App::aspect(),
-            view.frustum.clip_near,
-            view.frustum.clip_far);
-
-        frame.world_to_view = view.camera.transform().inverse_to_matrix();
-        frame.world_to_clip = frame.view_to_clip * frame.world_to_view;
-    }
-}
+void Viewer::update() { view.update(); }
 
 template <>
 void Viewer::draw<Viewer::ContourColorMaterial, Viewer::MeshPlotGeometry>(
     Span<MeshPlotInstance const> const& instances) const
 {
-    draw_impl<ContourColorMaterial, MeshPlotGeometry>({*this}, instances);
+    draw_impl<ContourColorMaterial, MeshPlotGeometry>(make_draw_context(view), instances);
 }
 
 template <>
 void Viewer::draw<Viewer::ContourLineMaterial, Viewer::MeshPlotGeometry>(
     Span<MeshPlotInstance const> const& instances) const
 {
-    draw_impl<ContourLineMaterial, MeshPlotGeometry>({*this}, instances);
+    draw_impl<ContourLineMaterial, MeshPlotGeometry>(make_draw_context(view), instances);
 }
 
 void Viewer::handle_event(App::Event const& event)
@@ -409,7 +399,7 @@ void Viewer::MeshGeometry::set_vertices(
     vertices.count = positions.size();
     if (vertices.count > vertices.capacity)
     {
-        init_buffer(vertices.buffer, mesh_vertex_buffer_desc(vertices.size()));
+        init_resource(vertices.buffer, mesh_vertex_buffer_desc(vertices.size()));
         vertices.capacity = vertices.count;
     }
 
@@ -422,7 +412,7 @@ void Viewer::MeshGeometry::set_indices(Span<Vec3<i32> const> const& faces)
     indices.count = faces.size() * 3;
     if (indices.count > indices.capacity)
     {
-        init_buffer(indices.buffer, mesh_index_buffer_desc(indices.size()));
+        init_resource(indices.buffer, mesh_index_buffer_desc(indices.size()));
         indices.capacity = indices.count;
     }
 
@@ -437,7 +427,7 @@ void Viewer::MeshPlotGeometry::set_scalars(Span<f32 const> const& values)
     scalars.count = values.size();
     if (scalars.count > scalars.capacity)
     {
-        init_buffer(scalars.buffer, mesh_plot_buffer_desc(scalars.size()));
+        init_resource(scalars.buffer, mesh_plot_buffer_desc(scalars.size()));
         scalars.capacity = scalars.count;
     }
 
@@ -449,6 +439,39 @@ Viewer::View::View()
     controls.orbit.apply(camera);
     controls.zoom.apply(camera);
     controls.pan.apply(camera);
+}
+
+void Viewer::View::update()
+{
+    f64 const dt_s = App::delta_time_s();
+
+    // Update and apply controls
+    {
+        f32 const t = saturate(controls.sensitivity * dt_s);
+
+        controls.orbit.update(t);
+        controls.orbit.apply(camera);
+
+        controls.zoom.update(t);
+        controls.zoom.apply(camera);
+
+        controls.pan.update(t);
+        controls.pan.apply(camera);
+
+        camera.pivot.position += (target.position - camera.pivot.position) * t;
+    }
+
+    // Update transforms
+    {
+        transforms.view_to_clip = make_perspective<NdcType_OpenGl>(
+            frustum.fov_y,
+            App::aspect(),
+            frustum.clip_near,
+            frustum.clip_far);
+
+        transforms.world_to_view = camera.transform().inverse_to_matrix();
+        transforms.world_to_clip = transforms.view_to_clip * transforms.world_to_view;
+    }
 }
 
 void Viewer::View::frame_target()

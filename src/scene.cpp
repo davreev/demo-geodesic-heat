@@ -398,20 +398,20 @@ void debug_draw_source_normals(Mat4<f32> const& local_to_view)
 
 void draw_debug()
 {
-    auto const& frame = state.viewer.frame;
+    auto const& xforms = state.viewer.view.transforms;
 
     sgl_defaults();
 
     sgl_matrix_mode_projection();
-    sgl_load_matrix(frame.view_to_clip.data());
+    sgl_load_matrix(xforms.view_to_clip.data());
 
-    debug_draw_axes(frame.world_to_view, 0.1f);
+    debug_draw_axes(xforms.world_to_view, 0.1f);
 
     auto const& inst = state.scene.mesh_plot_instances[0];
     if (inst.geometry)
     {
         Mat4<f32> const local_to_world = inst.transform.to_matrix();
-        debug_draw_source_normals(frame.world_to_view * local_to_world);
+        debug_draw_source_normals(xforms.world_to_view * local_to_world);
     }
 
     sgl_draw();

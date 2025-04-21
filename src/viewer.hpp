@@ -82,12 +82,14 @@ struct Viewer
     struct View
     {
         Camera camera;
+
         struct
         {
             f32 fov_y{deg_to_rad(60.0f)};
             f32 clip_near{0.01f};
             f32 clip_far{1000.0f};
         } frustum;
+
         struct
         {
             EasedOrbit orbit{{pi<f32> * -0.25f, pi<f32> * 0.25f}};
@@ -95,22 +97,23 @@ struct Viewer
             EasedPan pan{};
             f32 sensitivity{5.0f};
         } controls;
+
         struct
         {
             Vec3<f32> position{};
             f32 radius{1.0f};
         } target;
 
-        View();
-        void frame_target();
-    };
+        struct
+        {
+            Mat4<f32> view_to_clip;
+            Mat4<f32> world_to_view;
+            Mat4<f32> world_to_clip;
+        } transforms;
 
-    /// Transient data associated with the current frame. Refreshed by call to Viewer::update.
-    struct Frame
-    {
-        Mat4<f32> view_to_clip;
-        Mat4<f32> world_to_view;
-        Mat4<f32> world_to_clip;
+        View();
+        void update();
+        void frame_target();
     };
 
     struct Input
@@ -121,11 +124,9 @@ struct Viewer
     };
 
     View view;
-    Frame frame;
     Input input;
 
     static void init_default_resources();
-
     static void reload_default_shaders();
 
     void update();

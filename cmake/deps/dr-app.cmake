@@ -6,7 +6,7 @@ include(FetchContent)
 
 FetchContent_Declare(
     dr-app
-    URL https://github.com/davreev/dr-app/archive/refs/tags/0.3.0.zip
+    URL https://github.com/davreev/dr-app/archive/refs/tags/0.4.0.zip
 )
 
 FetchContent_MakeAvailable(dr-app)

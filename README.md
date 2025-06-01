@@ -28,16 +28,16 @@ cmake --build ./build [--config <config>]
 ### Web Build
 
 Download the [Emscripten SDK](https://github.com/emscripten-core/emsdk) and dot source the
-appropriate setup script
+provided script to initialize the Emscripten toolchain
 
 ```sh
 # Bash
 EMSDK_DIR="absolute/path/of/emsdk/root"
-. ./emsc-setup.sh
+. ./emsc-init.sh
 
 # Powershell
 $EMSDK_DIR="absolute/path/of/emsdk/root"
-. ./emsc-setup.ps1
+. ./emsc-init.ps1
 ```
 
 Then build via `emcmake`

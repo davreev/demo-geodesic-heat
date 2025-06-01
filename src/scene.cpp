@@ -53,7 +53,7 @@ struct {
 
     MeshAsset const* mesh;
     DynamicArray<i32> source_vertices;
-    Random<i32> random_vertex;
+    Random<> random{1};
     u64 animate_time;
 
     TaskQueue task_queue;
@@ -79,16 +79,22 @@ struct {
 
 void append_source_vertices()
 {
+    assert(state.mesh);
+    auto random_vert = state.random.generator<i32>(0, state.mesh->vertices.count());
+
     auto& src_verts = state.source_vertices;
     while (size(src_verts) < state.params.num_sources.value)
-        src_verts.push_back(state.random_vertex());
+        src_verts.push_back(random_vert());
 }
 
 void reset_source_vertices()
 {
+    assert(state.mesh);
+    auto random_vert = state.random.generator<i32>(0, state.mesh->vertices.count());
+
     auto& src_verts = state.source_vertices;
     for (isize i = 0; i < size(src_verts); ++i)
-        src_verts[i] = state.random_vertex();
+        src_verts[i] = random_vert();
 }
 
 void set_mesh(MeshAsset const* mesh)
@@ -98,7 +104,6 @@ void set_mesh(MeshAsset const* mesh)
     // Initialize source vertices
     {
         state.source_vertices.resize(state.params.num_sources.value);
-        state.random_vertex = Random<i32>(0, static_cast<i32>(mesh->vertices.count() - 1), 1);
         reset_source_vertices();
     }
 

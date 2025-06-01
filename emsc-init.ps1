@@ -6,6 +6,3 @@
 
 # Setup environment variables
 . $EMSDK_DIR/emsdk_env.ps1
-
-# Set the CMake toolchain file
-$CMAKE_TOOLCHAIN_FILE="$EMSDK_DIR/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake"

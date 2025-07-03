@@ -15,22 +15,22 @@ sg_shader_desc contour_color_shader_desc(char const* const vs_src, char const* c
             .stage = any_stage,
             .size = sizeof(float[2]),
             .glsl_uniforms = {
-                {.glsl_name = "u_spacing", .type = SG_UNIFORMTYPE_FLOAT},
-                {.glsl_name = "u_offset", .type = SG_UNIFORMTYPE_FLOAT},
+                {.glsl_name = "material.spacing", .type = SG_UNIFORMTYPE_FLOAT},
+                {.glsl_name = "material.offset", .type = SG_UNIFORMTYPE_FLOAT},
             },
         },
         .uniform_blocks[UniformBlock_Instance] = {
             .stage = any_stage,
             .size = sizeof(float[16 * 2]),
             .glsl_uniforms = {
-                {.glsl_name = "u_local_to_clip", .type = SG_UNIFORMTYPE_MAT4},
-                {.glsl_name = "u_local_to_view", .type = SG_UNIFORMTYPE_MAT4},
+                {.glsl_name = "instance.local_to_clip.data", .type = SG_UNIFORMTYPE_FLOAT4, .array_count = 4},
+                {.glsl_name = "instance.local_to_view.data", .type = SG_UNIFORMTYPE_FLOAT4, .array_count = 4},
             },
         },
         .images[0] = {.stage = any_stage},
         .samplers[0] = {.stage = any_stage},
         .image_sampler_pairs[0] = {
-            .glsl_name = "u_matcap", 
+            .glsl_name = "matcap", 
             .stage = any_stage, 
             .image_slot = 0, 
             .sampler_slot = 0,
@@ -71,17 +71,17 @@ sg_shader_desc contour_line_shader_desc(char const* const vs_src, char const* co
             .stage = any_stage,
             .size = sizeof(float[3]),
             .glsl_uniforms = {
-                {.glsl_name = "u_spacing", .type = SG_UNIFORMTYPE_FLOAT},
-                {.glsl_name = "u_line_width", .type = SG_UNIFORMTYPE_FLOAT},
-                {.glsl_name = "u_offset", .type = SG_UNIFORMTYPE_FLOAT},
+                {.glsl_name = "material.spacing", .type = SG_UNIFORMTYPE_FLOAT},
+                {.glsl_name = "material.line_width", .type = SG_UNIFORMTYPE_FLOAT},
+                {.glsl_name = "material.offset", .type = SG_UNIFORMTYPE_FLOAT},
             },
         },
         .uniform_blocks[UniformBlock_Instance] = {
             .stage = any_stage,
             .size = sizeof(float[16 * 2]),
             .glsl_uniforms = {
-                {.glsl_name = "u_local_to_clip", .type = SG_UNIFORMTYPE_MAT4},
-                {.glsl_name = "u_local_to_view", .type = SG_UNIFORMTYPE_MAT4},
+                {.glsl_name = "instance.local_to_clip.data", .type = SG_UNIFORMTYPE_FLOAT4, .array_count = 4},
+                {.glsl_name = "instance.local_to_view.data", .type = SG_UNIFORMTYPE_FLOAT4, .array_count = 4},
             },
         },
     };

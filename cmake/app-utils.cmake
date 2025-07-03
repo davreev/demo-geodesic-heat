@@ -20,37 +20,49 @@ function(get_base_dir file result_)
 endfunction()
 
 
-function(convert_shaders_gen_spirv files_out_)
+function(convert_shaders_gen_spirv_slang files_out_)
+    find_program(slangc slangc REQUIRED)
     file(MAKE_DIRECTORY "${gen_dir}/assets/shaders")
-    set(
-        glsl_include_dirs
-        "${src_dir}/assets/shaders"
-        # ...
-    )
-
-    find_program(glslang_validator glslangValidator REQUIRED)
-
-    set(args "-G;--aml;-l")
-    foreach(dir ${glsl_include_dirs})
-        list(APPEND args "-I${dir}")
-    endforeach()
 
     set(files_out ${${files_out_}})
-    foreach(glsl_file ${glsl_files})
-        get_base_dir(${glsl_file} base_dir)
-        file(RELATIVE_PATH rel_path ${base_dir} ${glsl_file})
+    foreach(slang_file ${slang_files})
+        get_base_dir(${slang_file} base_dir)
+        file(RELATIVE_PATH rel_path ${base_dir} ${slang_file})
         cmake_path(REMOVE_EXTENSION rel_path LAST_ONLY)
-        set(spv_file "${gen_dir}/${rel_path}.spv")
+
+        set(spv_file "${gen_dir}/${rel_path}.vert.spv")
         add_custom_command(
             OUTPUT
                 ${spv_file}
             DEPENDS 
-                ${glsl_file}
+                ${slang_file}
             COMMAND 
-                ${glslang_validator}
-                ${args}
+                ${slangc}
+                ${slang_file}
+                -I ${src_dir}/assets/shaders/modules
+                -target spirv
+                -matrix-layout-column-major
+                -entry vertex_main
                 -o ${spv_file}
-                ${glsl_file}
+            COMMENT 
+                "Generating SPIR-V binary"
+        )
+        list(APPEND files_out ${spv_file})
+
+        set(spv_file "${gen_dir}/${rel_path}.frag.spv")
+        add_custom_command(
+            OUTPUT
+                ${spv_file}
+            DEPENDS 
+                ${slang_file}
+            COMMAND 
+                ${slangc}
+                ${slang_file}
+                -I ${src_dir}/assets/shaders/modules
+                -target spirv
+                -matrix-layout-column-major
+                -entry fragment_main
+                -o ${spv_file}
             COMMENT 
                 "Generating SPIR-V binary"
         )
@@ -62,7 +74,7 @@ endfunction()
 
 
 function(convert_shaders files_out_)
-    convert_shaders_gen_spirv(spv_files)
+    convert_shaders_gen_spirv_slang(spv_files)
 
     find_program(spirv_cross spirv-cross REQUIRED)
 
@@ -83,6 +95,7 @@ function(convert_shaders files_out_)
             COMMAND 
                 ${spirv_cross}
                 ${args}
+                --glsl-emit-ubo-as-plain-uniforms
                 --output ${glsl_file}
                 ${spv_file}
             COMMENT 

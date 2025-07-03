@@ -1,67 +1,60 @@
-name: build
+name: Build
 
 on:
   push:
-    branches: [ develop ]
+    branches: [develop]
   pull_request:
-    branches: [ develop ]
+    branches: [develop]
 
 env:
   BUILD_TYPE: Debug
 
 jobs:
-  build-ubuntu-gcc:
+  build-ubuntu:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
 
-    - name: Install build dependencies
-      run: >
-       sudo apt-get update --yes &&
-       sudo apt-get install --yes --no-install-recommends
-       libx11-dev
-       libxi-dev
-       libxcursor-dev
-       libgl1-mesa-dev
-       glslang-tools
-       spirv-cross
+      - name: Install build dependencies
+        run: >
+          sudo apt-get update --yes &&
+          sudo apt-get install --yes --no-install-recommends
+          libx11-dev
+          libxi-dev
+          libxcursor-dev
+          libgl1-mesa-dev
+          spirv-cross
+          spirv-tools
 
-    - name: Configure CMake
-      run: > 
-        cmake 
-        -B ${{github.workspace}}/build
-        -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
-        -DCMAKE_CXX_COMPILER=g++
-        -DCMAKE_C_COMPILER=gcc
+      - name: Fetch Slang
+        run: |
+          curl -L --retry 5 --retry-delay 5 --fail --output slang.tar.gz \
+            https://github.com/shader-slang/slang/releases/download/v2025.5/slang-2025.5-linux-x86_64.tar.gz
+          mkdir slang
+          tar -xf slang.tar.gz --directory=./slang
+          sudo cp ./slang/bin/* /usr/local/bin
+          sudo cp ./slang/lib/* /usr/local/lib
+          slangc -version
 
-    - name: Build
-      run: cmake --build ${{github.workspace}}/build
+      - name: CMake Configure (GCC)
+        run: >
+          cmake 
+          -B ${{github.workspace}}/build
+          -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+          -DCMAKE_CXX_COMPILER=g++
+          -DCMAKE_C_COMPILER=gcc
 
-  build-ubuntu-clang:
-    runs-on: ubuntu-latest
+      - name: CMake Build (GCC)
+        run: cmake --build ${{github.workspace}}/build
 
-    steps:
-    - uses: actions/checkout@v3
+      - name: CMake Configure (Clang)
+        run: >
+          cmake 
+          -B ${{github.workspace}}/build
+          -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+          -DCMAKE_CXX_COMPILER=clang++
+          -DCMAKE_C_COMPILER=clang
 
-    - name: Install build dependencies
-      run: >
-       sudo apt-get update --yes &&
-       sudo apt-get install --yes --no-install-recommends
-       libx11-dev
-       libxi-dev
-       libxcursor-dev
-       libgl1-mesa-dev
-       glslang-tools
-       spirv-cross
-
-    - name: Configure CMake
-      run: > 
-        cmake 
-        -B ${{github.workspace}}/build
-        -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
-        -DCMAKE_CXX_COMPILER=clang++
-        -DCMAKE_C_COMPILER=clang
-
-    - name: Build
-      run: cmake --build ${{github.workspace}}/build
+      - name: CMake Build (Clang)
+        run: cmake --build ${{github.workspace}}/build

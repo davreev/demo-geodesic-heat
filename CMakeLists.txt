@@ -84,12 +84,9 @@ set(gen_dir "${CMAKE_CURRENT_BINARY_DIR}/gen")
 get_default_runtime_output_dir(runtime_output_dir)
 
 set(
-    glsl_files
-    "${src_dir}/assets/shaders/contour_color.vert.glsl"
-    "${src_dir}/assets/shaders/contour_color.frag.glsl"
-    "${src_dir}/assets/shaders/contour_line.vert.glsl"
-    "${src_dir}/assets/shaders/contour_line.frag.glsl"
-    # ...
+    slang_files
+    "${src_dir}/assets/shaders/contour_color.slang"
+    "${src_dir}/assets/shaders/contour_line.slang"
 )
 
 set(gen_asset_files)

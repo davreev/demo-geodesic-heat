@@ -1,10 +1,10 @@
----
+# ---
 BasedOnStyle: LLVM
 ColumnLimit: 100
 IndentWidth: 4
 TabWidth: 4
----
-Language: Cpp
+# ---
+# Language: Cpp
 AlignAfterOpenBracket: AlwaysBreak
 AlignOperands: DontAlign
 AlignTrailingComments: false

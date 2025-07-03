@@ -173,8 +173,8 @@ void apply_uniforms(Viewer::ContourColorMaterial const& mat, DrawContext const& 
 {
     struct
     {
-        float spacing;
-        float offset;
+        f32 spacing;
+        f32 offset;
     } u;
 
     u.spacing = mat.spacing;
@@ -191,9 +191,9 @@ void apply_uniforms(Viewer::ContourLineMaterial const& mat, DrawContext const& /
 {
     struct
     {
-        float spacing;
-        float line_width;
-        float offset;
+        f32 spacing;
+        f32 line_width;
+        f32 offset;
     } u;
 
     u.spacing = mat.spacing;

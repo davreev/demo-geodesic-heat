@@ -58,8 +58,9 @@ python -m http.server
 
 The following build-time dependencies are expected to be installed locally:
 
-- `glslangValidator` (>= 12.2.*)
+- `slangc` (>= 2025.5.0)
 - `spirv-cross` ( >= 2021.01.15)
+- `spirv-tools` ( >= 2022.1)
 
 Remaining dependencies are fetched during CMake's configure step. See `cmake/deps` for a complete
 list.

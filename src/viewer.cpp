@@ -390,6 +390,16 @@ void Viewer::handle_event(App::Event const& event)
         input.last_num_touches);
 }
 
+GfxPipeline Viewer::ContourColorMaterial::make_custom_pipeline(GfxShader::Handle shader)
+{
+    return GfxPipeline::make(contour_color_pipeline_desc(shader));
+}
+
+GfxPipeline Viewer::ContourLineMaterial::make_custom_pipeline(GfxShader::Handle shader)
+{
+    return GfxPipeline::make(contour_line_pipeline_desc(shader));
+}
+
 void Viewer::MeshGeometry::set_vertices(
     Span<Vec3<f32> const> const& positions,
     Span<Vec3<f32> const> const& normals)

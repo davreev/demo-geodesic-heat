@@ -19,12 +19,12 @@ sg_shader_desc contour_color_shader_desc(char const* const vs_src, char const* c
                 {.glsl_name = "material.offset", .type = SG_UNIFORMTYPE_FLOAT},
             },
         },
-        .uniform_blocks[UniformBlock_Instance] = {
+        .uniform_blocks[UniformBlock_Object] = {
             .stage = any_stage,
             .size = sizeof(float[16 * 2]),
             .glsl_uniforms = {
-                {.glsl_name = "instance.local_to_clip.data", .type = SG_UNIFORMTYPE_FLOAT4, .array_count = 4},
-                {.glsl_name = "instance.local_to_view.data", .type = SG_UNIFORMTYPE_FLOAT4, .array_count = 4},
+                {.glsl_name = "object.local_to_clip.data", .type = SG_UNIFORMTYPE_FLOAT4, .array_count = 4},
+                {.glsl_name = "object.local_to_view.data", .type = SG_UNIFORMTYPE_FLOAT4, .array_count = 4},
             },
         },
         .images[0] = {.stage = any_stage},
@@ -76,12 +76,12 @@ sg_shader_desc contour_line_shader_desc(char const* const vs_src, char const* co
                 {.glsl_name = "material.offset", .type = SG_UNIFORMTYPE_FLOAT},
             },
         },
-        .uniform_blocks[UniformBlock_Instance] = {
+        .uniform_blocks[UniformBlock_Object] = {
             .stage = any_stage,
             .size = sizeof(float[16 * 2]),
             .glsl_uniforms = {
-                {.glsl_name = "instance.local_to_clip.data", .type = SG_UNIFORMTYPE_FLOAT4, .array_count = 4},
-                {.glsl_name = "instance.local_to_view.data", .type = SG_UNIFORMTYPE_FLOAT4, .array_count = 4},
+                {.glsl_name = "object.local_to_clip.data", .type = SG_UNIFORMTYPE_FLOAT4, .array_count = 4},
+                {.glsl_name = "object.local_to_view.data", .type = SG_UNIFORMTYPE_FLOAT4, .array_count = 4},
             },
         },
     };

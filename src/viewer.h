@@ -12,7 +12,7 @@ enum
 {
     UniformBlock_Material = 0,
     UniformBlock_Geometry,
-    UniformBlock_Instance,
+    UniformBlock_Object,
     _UniformBlock_Count,
 };
 

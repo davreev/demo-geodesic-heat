@@ -108,23 +108,14 @@ template <typename T>
 constexpr bool always_false{false};
 
 template <typename Material>
-Material const* get_material(Viewer::MeshPlotInstance const& inst)
+Material const* get_material(Viewer::MeshPlot const& object)
 {
     if constexpr (std::is_same_v<Material, Viewer::ContourColorMaterial>)
-        return inst.materials.contour_color;
+        return object.materials.contour_color;
     else if constexpr (std::is_same_v<Material, Viewer::ContourLineMaterial>)
-        return inst.materials.contour_line;
+        return object.materials.contour_line;
     else
-        static_assert(always_false<Material>, "Material type not available");
-}
-
-template <typename Geometry>
-Geometry const* get_geometry(Viewer::MeshPlotInstance const& inst)
-{
-    if constexpr (std::is_same_v<Geometry, Viewer::MeshPlotGeometry>)
-        return inst.geometry;
-    else
-        static_assert(always_false<Geometry>, "Geometry type not available");
+        static_assert(always_false<Material>, "Material not available on object");
 }
 
 struct DrawContext
@@ -210,7 +201,7 @@ void bind_resources(Viewer::MeshPlotGeometry const& geom, DrawContext& ctx)
     // NOTE(dr): Can static dispatch based on bound material type
     static_assert(
         CompatMaterials::includes<Material>,
-        "Geometry type isn't compatible with bound material type");
+        "Geometry isn't compatible with bound material type");
 
     ctx.bindings.vertex_buffers[0] = geom.mesh->vertices.buffer;
     ctx.bindings.vertex_buffers[1] = geom.mesh->vertices.buffer;
@@ -227,30 +218,24 @@ void apply_uniforms(Viewer::MeshPlotGeometry const& /*geom*/, DrawContext const&
     // NOTE(dr): Can static dispatch based on bound material type
     static_assert(
         CompatMaterials::includes<Material>,
-        "Geometry type isn't compatible with bound material type");
+        "Geometry isn't compatible with bound material type");
 
-    // No uniforms for VolumeGeometry
     // ...
 }
 
-template <typename Material, typename Geometry>
-void draw(Viewer::MeshPlotInstance const& inst, DrawContext const& ctx)
+template <typename Material>
+void draw(Viewer::MeshPlot const& object, DrawContext const& ctx)
 {
     using CompatMaterials = TypePack<Viewer::ContourColorMaterial, Viewer::ContourLineMaterial>;
-    using CompatGeometry = TypePack<Viewer::MeshPlotGeometry>;
 
-    // NOTE(dr): Can static dispatch based on bound material and geometry types
+    // NOTE(dr): Can static dispatch based on bound material type
     static_assert(
         CompatMaterials::includes<Material>,
-        "Instance type isn't compatible with bound material type");
+        "Object isn't compatible with bound material type");
 
-    static_assert(
-        CompatGeometry::includes<Geometry>,
-        "Instance type isn't compatible with bound geometry type");
-
-    // Update instance uniforms
+    // Update object uniforms
     {
-        Mat4<f32> const local_to_world = inst.transform.to_matrix();
+        Mat4<f32> const local_to_world = object.transform.to_matrix();
 
         struct
         {
@@ -260,26 +245,28 @@ void draw(Viewer::MeshPlotInstance const& inst, DrawContext const& ctx)
 
         as_mat<4, 4>(u.local_to_clip) = ctx.transforms.world_to_clip * local_to_world;
         as_mat<4, 4>(u.local_to_view) = ctx.transforms.world_to_view * local_to_world;
-        sg_apply_uniforms(UniformBlock_Instance, {&u, sizeof(u)});
+        sg_apply_uniforms(UniformBlock_Object, {&u, sizeof(u)});
     }
 
-    const isize num_indices = inst.geometry->mesh->indices.count;
+    const isize num_indices = object.geometry->mesh->indices.count;
     sg_draw(0, num_indices, 1);
 }
 
-template <typename Material, typename Geometry, typename Instance>
-void draw_impl(DrawContext ctx, Span<Instance const> instances)
+template <typename Material, typename Object>
+void draw_impl(DrawContext ctx, Span<Object const> objects)
 {
+    using Geometry = typename Object::Geometry;
+
     Material const* prev_mat{};
     Geometry const* prev_geom{};
 
-    for (Instance const& inst : instances)
+    for (Object const& obj : objects)
     {
-        Material const* mat = get_material<Material>(inst);
+        Material const* mat = get_material<Material>(obj);
         if (mat == nullptr)
             continue;
 
-        Geometry const* geom = get_geometry<Geometry>(inst);
+        Geometry const* geom = obj.geometry;
         if (geom == nullptr)
             continue;
 
@@ -307,8 +294,8 @@ void draw_impl(DrawContext ctx, Span<Instance const> instances)
         if (bindings_dirty)
             ctx.apply_bindings();
 
-        // Draw instance
-        draw<Material, Geometry>(inst, ctx);
+        // Draw object
+        draw<Material>(obj, ctx);
     }
 }
 
@@ -354,17 +341,15 @@ void Viewer::reload_default_shaders()
 void Viewer::update() { view.update(); }
 
 template <>
-void Viewer::draw<Viewer::ContourColorMaterial, Viewer::MeshPlotGeometry>(
-    Span<MeshPlotInstance const> const& instances) const
+void Viewer::draw<Viewer::ContourColorMaterial>(Span<MeshPlot const> const& objects) const
 {
-    draw_impl<ContourColorMaterial, MeshPlotGeometry>(make_draw_context(view), instances);
+    draw_impl<ContourColorMaterial>(make_draw_context(view), objects);
 }
 
 template <>
-void Viewer::draw<Viewer::ContourLineMaterial, Viewer::MeshPlotGeometry>(
-    Span<MeshPlotInstance const> const& instances) const
+void Viewer::draw<Viewer::ContourLineMaterial>(Span<MeshPlot const> const& objects) const
 {
-    draw_impl<ContourLineMaterial, MeshPlotGeometry>(make_draw_context(view), instances);
+    draw_impl<ContourLineMaterial>(make_draw_context(view), objects);
 }
 
 void Viewer::handle_event(App::Event const& event)
@@ -390,12 +375,14 @@ void Viewer::handle_event(App::Event const& event)
         input.last_num_touches);
 }
 
-GfxPipeline Viewer::ContourColorMaterial::make_custom_pipeline(GfxShader::Handle shader)
+template <>
+GfxPipeline Viewer::make_material_pipeline<Viewer::ContourColorMaterial>(GfxShader::Handle shader)
 {
     return GfxPipeline::make(contour_color_pipeline_desc(shader));
 }
 
-GfxPipeline Viewer::ContourLineMaterial::make_custom_pipeline(GfxShader::Handle shader)
+template <>
+GfxPipeline Viewer::make_material_pipeline<Viewer::ContourLineMaterial>(GfxShader::Handle shader)
 {
     return GfxPipeline::make(contour_line_pipeline_desc(shader));
 }

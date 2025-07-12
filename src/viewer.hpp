@@ -22,8 +22,6 @@ struct Viewer
         } matcap;
         f32 spacing;
         f32 offset;
-
-        static GfxPipeline make_custom_pipeline(GfxShader::Handle shader);
     };
 
     struct ContourLineMaterial
@@ -32,8 +30,6 @@ struct Viewer
         f32 spacing;
         f32 line_width;
         f32 offset;
-
-        static GfxPipeline make_custom_pipeline(GfxShader::Handle shader);
     };
 
     template <isize stride_>
@@ -68,10 +64,12 @@ struct Viewer
         void set_scalars(Span<f32 const> const& values);
     };
 
-    struct MeshPlotInstance
+    struct MeshPlot
     {
+        using Geometry = MeshPlotGeometry;
+
         Conformal3<f32> transform;
-        MeshPlotGeometry const* geometry;
+        Geometry const* geometry;
         struct
         {
             ContourColorMaterial const* contour_color;
@@ -129,10 +127,13 @@ struct Viewer
     static void init_default_resources();
     static void reload_default_shaders();
 
+    template <typename Material>
+    static GfxPipeline make_material_pipeline(GfxShader::Handle shader);
+
     void update();
 
-    template <typename Material, typename Geometry, typename Instance>
-    void draw(Span<Instance const> const& instances) const;
+    template <typename Material, typename Object>
+    void draw(Span<Object const> const& objects) const;
 
     void handle_event(App::Event const& event);
 };

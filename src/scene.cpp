@@ -46,9 +46,9 @@ struct {
     struct {
         Viewer::ContourColorMaterial contour_color_material;
         Viewer::ContourLineMaterial contour_line_material;
-        Viewer::MeshGeometry meshes[8];
-        Viewer::MeshPlotGeometry mesh_plots[8];
-        Viewer::MeshPlotInstance mesh_plot_instances[8];
+        Viewer::MeshGeometry mesh_geom;
+        Viewer::MeshPlotGeometry mesh_plot_geom;
+        Viewer::MeshPlot mesh_plot;
     } scene;
 
     MeshAsset const* mesh;
@@ -109,31 +109,31 @@ void set_mesh(MeshAsset const* mesh)
 
     // Update mesh geometry
     {
-        auto& geom = state.scene.meshes[0];
+        auto& geom = state.scene.mesh_geom;
         geom.set_indices(as_span(mesh->faces.vertex_ids));
         geom.set_vertices(as_span(mesh->vertices.positions), as_span(mesh->vertices.normals));
     }
 
-    // Update mesh plot instance
+    // Update mesh plot
     {
-        auto& inst = state.scene.mesh_plot_instances[0];
-        inst.geometry = nullptr;
+        auto& plot = state.scene.mesh_plot;
+        plot.geometry = nullptr;
 
         // Fit to unit sphere in world space
         auto const& [cen, rad] = mesh->bounds;
         f32 const s = 1.0f / rad;
-        inst.transform.translation = -cen * s;
-        inst.transform.scale = s;
+        plot.transform.translation = -cen * s;
+        plot.transform.scale = s;
     }
 }
 
 void set_plot(Span<f32 const> const& values)
 {
-    auto& plot = state.scene.mesh_plots[0];
-    plot.set_scalars(values);
+    auto& geom = state.scene.mesh_plot_geom;
+    geom.set_scalars(values);
 
-    auto& inst = state.scene.mesh_plot_instances[0];
-    inst.geometry = &plot;
+    auto& plot = state.scene.mesh_plot;
+    plot.geometry = &geom;
 }
 
 void schedule_task(SolveDistance& task)
@@ -412,10 +412,10 @@ void draw_debug()
 
     debug_draw_axes(xforms.world_to_view, 0.1f);
 
-    auto const& inst = state.scene.mesh_plot_instances[0];
-    if (inst.geometry)
+    auto const& plot = state.scene.mesh_plot;
+    if (plot.geometry)
     {
-        Mat4<f32> const local_to_world = inst.transform.to_matrix();
+        Mat4<f32> const local_to_world = plot.transform.to_matrix();
         debug_draw_source_normals(xforms.world_to_view * local_to_world);
     }
 
@@ -431,11 +431,11 @@ void open(void* /*context*/)
     // Initialize scene
     {
         auto& scene = state.scene;
-        scene.mesh_plots[0].mesh = &scene.meshes[0];
+        scene.mesh_plot_geom.mesh = &scene.mesh_geom;
 
-        auto& inst = scene.mesh_plot_instances[0];
-        inst.materials.contour_color = &scene.contour_color_material;
-        inst.materials.contour_line = &scene.contour_line_material;
+        auto& plot = scene.mesh_plot;
+        plot.materials.contour_color = &scene.contour_color_material;
+        plot.materials.contour_line = &scene.contour_line_material;
     }
 
     // Center camera on unit sphere
@@ -493,16 +493,15 @@ void draw(void* /*context*/)
         }
     }
 
-    // Draw mesh plot instances
+    // Draw mesh plot
     {
-        using Geometry = Viewer::MeshPlotGeometry;
-        auto const instances = as_span(state.scene.mesh_plot_instances).as_const();
+        Span<Viewer::MeshPlot const> const plots{&state.scene.mesh_plot, 1};
 
         if (state.params.show_color_contour)
-            state.viewer.draw<Viewer::ContourColorMaterial, Geometry>(instances);
+            state.viewer.draw<Viewer::ContourColorMaterial>(plots);
 
         if (state.params.show_line_contour)
-            state.viewer.draw<Viewer::ContourLineMaterial, Geometry>(instances);
+            state.viewer.draw<Viewer::ContourLineMaterial>(plots);
     }
 
     draw_debug();

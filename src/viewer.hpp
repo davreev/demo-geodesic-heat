@@ -1,5 +1,7 @@
 #pragma once
 
+#include <tuple>
+
 #include <dr/basic_types.hpp>
 #include <dr/math_types.hpp>
 
@@ -70,18 +72,9 @@ struct Viewer
 
     struct MeshPlot
     {
-        using Geometry = MeshPlotGeometry;
-
         Conformal3<f32> transform;
-        Geometry const* geometry;
-        struct
-        {
-            ContourColorMaterial const* contour_color;
-            ContourLineMaterial const* contour_line;
-        } materials;
-
-        template <typename Material>
-        Material const* material() const;
+        MeshPlotGeometry const* geometry;
+        std::tuple<ContourColorMaterial const*, ContourLineMaterial const*> materials;
     };
 
     struct View

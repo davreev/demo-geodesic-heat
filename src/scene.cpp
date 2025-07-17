@@ -434,8 +434,7 @@ void open(void* /*context*/)
         scene.mesh_plot_geom.mesh = &scene.mesh_geom;
 
         auto& plot = scene.mesh_plot;
-        plot.materials.contour_color = &scene.contour_color_material;
-        plot.materials.contour_line = &scene.contour_line_material;
+        plot.materials = {&scene.contour_color_material, &scene.contour_line_material};
     }
 
     // Center camera on unit sphere

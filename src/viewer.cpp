@@ -219,13 +219,11 @@ void submit_draw(Viewer::DrawContext& ctx, Viewer::MeshPlot const& object)
 template <typename Material, typename Object>
 void draw(Viewer::DrawContext& ctx, Object const& object)
 {
-    using Geometry = typename Object::Geometry;
-
-    Material const* mat = object.template material<Material>();
+    auto mat = std::get<Material const*>(object.materials);
     if (mat == nullptr)
         return;
 
-    Geometry const* geom = object.geometry;
+    auto geom = object.geometry;
     if (geom == nullptr)
         return;
 
@@ -373,18 +371,6 @@ void Viewer::MeshPlotGeometry::set_scalars(Span<f32 const> const& values)
     }
 
     sg_update_buffer(scalars.buffer, to_range(values));
-}
-
-template <>
-Viewer::ContourColorMaterial const* Viewer::MeshPlot::material() const
-{
-    return materials.contour_color;
-}
-
-template <>
-Viewer::ContourLineMaterial const* Viewer::MeshPlot::material() const
-{
-    return materials.contour_line;
 }
 
 Viewer::View::View()

@@ -7,12 +7,12 @@ struct Material
 }
 ConstantBuffer<Material> material;
 
-struct Instance
+struct Object
 {
     float4x4 local_to_clip;
     float4x4 local_to_view;
 }
-ConstantBuffer<Instance> instance;
+ConstantBuffer<Object> object;
 
 Sampler2D matcap;
 
@@ -31,9 +31,9 @@ struct Vertex
 float4 vertex_main(Vertex v, out float3 view_normal, out float scalar) : SV_Position
 {
     // NOTE(dr): This assumes local_to_view has uniform scaling
-    view_normal = normalize(mul(float3x3(instance.local_to_view), v.normal));
+    view_normal = normalize(mul(float3x3(object.local_to_view), v.normal));
     scalar = v.scalar;
-    return mul(instance.local_to_clip, { v.position, 1.0 });
+    return mul(object.local_to_clip, { v.position, 1.0 });
 }
 
 float3 matcap_shade(float3 base_color, float3 view_normal, float intensity, float neutral)

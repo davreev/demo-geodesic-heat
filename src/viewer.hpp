@@ -22,6 +22,8 @@ struct Viewer
         } matcap;
         f32 spacing;
         f32 offset;
+
+        static GfxPipeline make_custom_pipeline(GfxShader::Handle shader);
     };
 
     struct ContourLineMaterial
@@ -30,6 +32,8 @@ struct Viewer
         f32 spacing;
         f32 line_width;
         f32 offset;
+
+        static GfxPipeline make_custom_pipeline(GfxShader::Handle shader);
     };
 
     template <isize stride_>
@@ -75,6 +79,9 @@ struct Viewer
             ContourColorMaterial const* contour_color;
             ContourLineMaterial const* contour_line;
         } materials;
+
+        template <typename Material>
+        Material const* material() const;
     };
 
     struct View
@@ -102,15 +109,10 @@ struct Viewer
             f32 radius{1.0f};
         } target;
 
-        struct
-        {
-            Mat4<f32> view_to_clip;
-            Mat4<f32> world_to_view;
-            Mat4<f32> world_to_clip;
-        } transforms;
-
         View();
+
         void update();
+
         void frame_target();
     };
 
@@ -121,19 +123,36 @@ struct Viewer
         bool mouse_down[3];
     };
 
+    struct DrawContext
+    {
+        using GfxBindings = sg_bindings;
+
+        struct
+        {
+            Mat4<f32> view_to_clip;
+            Mat4<f32> world_to_view;
+            Mat4<f32> world_to_clip;
+        } transforms;
+
+        GfxPipeline::Handle pipeline;
+        GfxBindings bindings;
+        void const* material;
+        void const* geometry;
+
+        template <typename Material, typename Object>
+        void draw(Object const& object);
+    };
+
     View view;
     Input input;
 
     static void init_default_resources();
-    static void reload_default_shaders();
 
-    template <typename Material>
-    static GfxPipeline make_material_pipeline(GfxShader::Handle shader);
+    static void reload_default_shaders();
 
     void update();
 
-    template <typename Material, typename Object>
-    void draw(Span<Object const> const& objects) const;
+    DrawContext make_draw_context() const;
 
     void handle_event(App::Event const& event);
 };

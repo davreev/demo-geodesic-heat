@@ -104,202 +104,6 @@ Handle const valid_or(Handle const handle, Handle const other)
 }
 
 template <typename T>
-[[maybe_unused]]
-constexpr bool always_false{false};
-
-template <typename Material>
-Material const* get_material(Viewer::MeshPlot const& object)
-{
-    if constexpr (std::is_same_v<Material, Viewer::ContourColorMaterial>)
-        return object.materials.contour_color;
-    else if constexpr (std::is_same_v<Material, Viewer::ContourLineMaterial>)
-        return object.materials.contour_line;
-    else
-        static_assert(always_false<Material>, "Material not available on object");
-}
-
-struct DrawContext
-{
-    struct
-    {
-        Mat4<f32> view_to_clip;
-        Mat4<f32> world_to_view;
-        Mat4<f32> world_to_clip;
-    } transforms;
-
-    GfxPipeline::Handle pipeline{};
-    sg_bindings bindings{};
-
-    bool apply_pipeline(GfxPipeline::Handle const pipeline)
-    {
-        // Avoid unecessary pipeline state change
-        if (pipeline.id != this->pipeline.id)
-        {
-            sg_apply_pipeline(pipeline);
-            this->pipeline = pipeline;
-            bindings = {};
-            return true;
-        }
-        return false;
-    }
-
-    template <typename Material>
-    bool apply_pipeline(Material const& mat)
-    {
-        using Default = DefaultResources<Material>;
-        return apply_pipeline(valid_or(mat.pipeline, Default::pipeline.handle()));
-    }
-
-    void apply_bindings() { sg_apply_bindings(bindings); }
-};
-
-void bind_resources(Viewer::ContourColorMaterial const& mat, DrawContext& ctx)
-{
-    using Default = DefaultResources<Viewer::ContourColorMaterial>;
-    ctx.bindings.images[0] = valid_or(mat.matcap.image, Default::matcap.image.handle());
-    ctx.bindings.samplers[0] = valid_or(mat.matcap.sampler, Default::matcap.sampler.handle());
-}
-
-void apply_uniforms(Viewer::ContourColorMaterial const& mat, DrawContext const& /*ctx*/)
-{
-    struct
-    {
-        f32 spacing;
-        f32 offset;
-    } u;
-
-    u.spacing = mat.spacing;
-    u.offset = mat.offset;
-    sg_apply_uniforms(UniformBlock_Material, {&u, sizeof(u)});
-}
-
-void bind_resources(Viewer::ContourLineMaterial const& /*mat*/, DrawContext& /*ctx*/)
-{
-    // ...
-}
-
-void apply_uniforms(Viewer::ContourLineMaterial const& mat, DrawContext const& /*ctx*/)
-{
-    struct
-    {
-        f32 spacing;
-        f32 line_width;
-        f32 offset;
-    } u;
-
-    u.spacing = mat.spacing;
-    u.line_width = mat.line_width;
-    u.offset = mat.offset;
-    sg_apply_uniforms(UniformBlock_Material, {&u, sizeof(u)});
-}
-
-template <typename Material>
-void bind_resources(Viewer::MeshPlotGeometry const& geom, DrawContext& ctx)
-{
-    using CompatMaterials = TypePack<Viewer::ContourColorMaterial, Viewer::ContourLineMaterial>;
-
-    // NOTE(dr): Can static dispatch based on bound material type
-    static_assert(
-        CompatMaterials::includes<Material>,
-        "Geometry isn't compatible with bound material type");
-
-    ctx.bindings.vertex_buffers[0] = geom.mesh->vertices.buffer;
-    ctx.bindings.vertex_buffers[1] = geom.mesh->vertices.buffer;
-    ctx.bindings.vertex_buffer_offsets[1] = geom.mesh->vertices.count * sizeof(f32[3]);
-    ctx.bindings.vertex_buffers[2] = geom.scalars.buffer;
-    ctx.bindings.index_buffer = geom.mesh->indices.buffer;
-}
-
-template <typename Material>
-void apply_uniforms(Viewer::MeshPlotGeometry const& /*geom*/, DrawContext const& /*ctx*/)
-{
-    using CompatMaterials = TypePack<Viewer::ContourColorMaterial, Viewer::ContourLineMaterial>;
-
-    // NOTE(dr): Can static dispatch based on bound material type
-    static_assert(
-        CompatMaterials::includes<Material>,
-        "Geometry isn't compatible with bound material type");
-
-    // ...
-}
-
-template <typename Material>
-void draw(Viewer::MeshPlot const& object, DrawContext const& ctx)
-{
-    using CompatMaterials = TypePack<Viewer::ContourColorMaterial, Viewer::ContourLineMaterial>;
-
-    // NOTE(dr): Can static dispatch based on bound material type
-    static_assert(
-        CompatMaterials::includes<Material>,
-        "Object isn't compatible with bound material type");
-
-    // Update object uniforms
-    {
-        Mat4<f32> const local_to_world = object.transform.to_matrix();
-
-        struct
-        {
-            f32 local_to_clip[16];
-            f32 local_to_view[16];
-        } u;
-
-        as_mat<4, 4>(u.local_to_clip) = ctx.transforms.world_to_clip * local_to_world;
-        as_mat<4, 4>(u.local_to_view) = ctx.transforms.world_to_view * local_to_world;
-        sg_apply_uniforms(UniformBlock_Object, {&u, sizeof(u)});
-    }
-
-    const isize num_indices = object.geometry->mesh->indices.count;
-    sg_draw(0, num_indices, 1);
-}
-
-template <typename Material, typename Object>
-void draw_impl(DrawContext ctx, Span<Object const> objects)
-{
-    using Geometry = typename Object::Geometry;
-
-    Material const* prev_mat{};
-    Geometry const* prev_geom{};
-
-    for (Object const& obj : objects)
-    {
-        Material const* mat = get_material<Material>(obj);
-        if (mat == nullptr)
-            continue;
-
-        Geometry const* geom = obj.geometry;
-        if (geom == nullptr)
-            continue;
-
-        bool pipeline_changed = false;
-        bool bindings_dirty = false;
-
-        // Update material
-        if (mat != prev_mat)
-        {
-            pipeline_changed = ctx.apply_pipeline(*mat);
-            bind_resources(*mat, ctx), bindings_dirty = true;
-            apply_uniforms(*mat, ctx);
-            prev_mat = mat;
-        }
-
-        // Update geometry
-        if (geom != prev_geom || pipeline_changed)
-        {
-            bind_resources<Material>(*geom, ctx), bindings_dirty = true;
-            apply_uniforms<Material>(*geom, ctx);
-            prev_geom = geom;
-        }
-
-        // Commit bound resources
-        if (bindings_dirty)
-            ctx.apply_bindings();
-
-        // Draw object
-        draw<Material>(obj, ctx);
-    }
-}
-
-template <typename T>
 sg_range to_range(Span<T> const& span)
 {
     return {span.data(), span.size() * sizeof(T)};
@@ -314,13 +118,139 @@ void init_resource(Resource& buf, typename Resource::Desc const& desc)
         buf = Resource::make(desc);
 }
 
-DrawContext make_draw_context(Viewer::View const& view)
+void set_pipeline(Viewer::DrawContext& ctx, GfxPipeline::Handle const pipeline)
 {
-    DrawContext ctx{};
-    ctx.transforms.view_to_clip = view.transforms.view_to_clip;
-    ctx.transforms.world_to_view = view.transforms.world_to_view;
-    ctx.transforms.world_to_clip = view.transforms.world_to_clip;
-    return ctx;
+    // Avoid unecessary pipeline change
+    if (pipeline.id == ctx.pipeline.id)
+        return;
+
+    sg_apply_pipeline(pipeline);
+    ctx.pipeline = pipeline;
+    ctx.bindings = {};
+    ctx.material = nullptr;
+    ctx.geometry = nullptr;
+}
+
+void set_material(Viewer::DrawContext& ctx, Viewer::ContourColorMaterial const* material)
+{
+    using Default = DefaultResources<Viewer::ContourColorMaterial>;
+    set_pipeline(ctx, valid_or(material->pipeline, Default::pipeline.handle()));
+
+    ctx.bindings.images[0] = valid_or(material->matcap.image, Default::matcap.image.handle());
+    ctx.bindings.samplers[0] = valid_or(material->matcap.sampler, Default::matcap.sampler.handle());
+
+    struct
+    {
+        f32 spacing;
+        f32 offset;
+    } u;
+
+    u.spacing = material->spacing;
+    u.offset = material->offset;
+    sg_apply_uniforms(UniformBlock_Material, {&u, sizeof(u)});
+
+    ctx.material = material;
+}
+
+void set_material(Viewer::DrawContext& ctx, Viewer::ContourLineMaterial const* material)
+{
+    using Default = DefaultResources<Viewer::ContourLineMaterial>;
+    set_pipeline(ctx, valid_or(material->pipeline, Default::pipeline.handle()));
+
+    struct
+    {
+        f32 spacing;
+        f32 line_width;
+        f32 offset;
+    } u;
+
+    u.spacing = material->spacing;
+    u.line_width = material->line_width;
+    u.offset = material->offset;
+    sg_apply_uniforms(UniformBlock_Material, {&u, sizeof(u)});
+
+    ctx.material = material;
+}
+
+template <typename Material>
+void set_geometry(Viewer::DrawContext& ctx, Viewer::MeshPlotGeometry const* geometry)
+{
+    using OkMaterials = TypePack<Viewer::ContourColorMaterial, Viewer::ContourLineMaterial>;
+
+    // NOTE(dr): Can static dispatch based on bound material type
+    static_assert(
+        OkMaterials::includes<Material>,
+        "Geometry isn't compatible with bound material type");
+
+    ctx.bindings.vertex_buffers[0] = geometry->mesh->vertices.buffer;
+    ctx.bindings.vertex_buffers[1] = geometry->mesh->vertices.buffer;
+    ctx.bindings.vertex_buffer_offsets[1] = geometry->mesh->vertices.count * sizeof(f32[3]);
+    ctx.bindings.vertex_buffers[2] = geometry->scalars.buffer;
+    ctx.bindings.index_buffer = geometry->mesh->indices.buffer;
+
+    ctx.geometry = geometry;
+}
+
+template <typename Material>
+void submit_draw(Viewer::DrawContext& ctx, Viewer::MeshPlot const& object)
+{
+    using OkMaterials = TypePack<Viewer::ContourColorMaterial, Viewer::ContourLineMaterial>;
+
+    // NOTE(dr): Can static dispatch based on bound material type
+    static_assert(
+        OkMaterials::includes<Material>,
+        "Object isn't compatible with bound material type");
+
+    struct
+    {
+        f32 local_to_clip[16];
+        f32 local_to_view[16];
+    } u;
+
+    Mat4<f32> const local_to_world = object.transform.to_matrix();
+    as_mat<4, 4>(u.local_to_clip) = ctx.transforms.world_to_clip * local_to_world;
+    as_mat<4, 4>(u.local_to_view) = ctx.transforms.world_to_view * local_to_world;
+    sg_apply_uniforms(UniformBlock_Object, {&u, sizeof(u)});
+
+    const isize num_indices = object.geometry->mesh->indices.count;
+    sg_draw(0, num_indices, 1);
+}
+
+template <typename Material, typename Object>
+void draw(Viewer::DrawContext& ctx, Object const& object)
+{
+    using Geometry = typename Object::Geometry;
+
+    Material const* mat = object.template material<Material>();
+    if (mat == nullptr)
+        return;
+
+    Geometry const* geom = object.geometry;
+    if (geom == nullptr)
+        return;
+
+    bool bindings_dirty = false;
+
+    // Update material
+    if (mat != ctx.material)
+    {
+        set_material(ctx, mat);
+        bindings_dirty = true;
+    }
+
+    // Update geometry
+    if (geom != ctx.geometry)
+    {
+        set_geometry<Material>(ctx, geom);
+        bindings_dirty = true;
+    }
+
+    // Commit bound resources
+    if (bindings_dirty)
+        sg_apply_bindings(ctx.bindings);
+
+    // Submit draw call
+    submit_draw<Material>(ctx, object);
 }
 
 } // namespace
@@ -341,15 +271,31 @@ void Viewer::reload_default_shaders()
 void Viewer::update() { view.update(); }
 
 template <>
-void Viewer::draw<Viewer::ContourColorMaterial>(Span<MeshPlot const> const& objects) const
+void Viewer::DrawContext::draw<Viewer::ContourColorMaterial>(Viewer::MeshPlot const& object)
 {
-    draw_impl<ContourColorMaterial>(make_draw_context(view), objects);
+    dr::draw<Viewer::ContourColorMaterial>(*this, object);
 }
 
 template <>
-void Viewer::draw<Viewer::ContourLineMaterial>(Span<MeshPlot const> const& objects) const
+void Viewer::DrawContext::draw<Viewer::ContourLineMaterial>(Viewer::MeshPlot const& object)
 {
-    draw_impl<ContourLineMaterial>(make_draw_context(view), objects);
+    dr::draw<Viewer::ContourLineMaterial>(*this, object);
+}
+
+Viewer::DrawContext Viewer::make_draw_context() const
+{
+    DrawContext ctx{};
+
+    ctx.transforms.view_to_clip = make_perspective<NdcType_OpenGl>(
+        view.frustum.fov_y,
+        App::aspect(),
+        view.frustum.clip_near,
+        view.frustum.clip_far);
+
+    ctx.transforms.world_to_view = view.camera.transform().inverse_to_matrix();
+    ctx.transforms.world_to_clip = ctx.transforms.view_to_clip * ctx.transforms.world_to_view;
+
+    return ctx;
 }
 
 void Viewer::handle_event(App::Event const& event)
@@ -375,14 +321,12 @@ void Viewer::handle_event(App::Event const& event)
         input.last_num_touches);
 }
 
-template <>
-GfxPipeline Viewer::make_material_pipeline<Viewer::ContourColorMaterial>(GfxShader::Handle shader)
+GfxPipeline Viewer::ContourColorMaterial::make_custom_pipeline(GfxShader::Handle shader)
 {
     return GfxPipeline::make(contour_color_pipeline_desc(shader));
 }
 
-template <>
-GfxPipeline Viewer::make_material_pipeline<Viewer::ContourLineMaterial>(GfxShader::Handle shader)
+GfxPipeline Viewer::ContourLineMaterial::make_custom_pipeline(GfxShader::Handle shader)
 {
     return GfxPipeline::make(contour_line_pipeline_desc(shader));
 }
@@ -431,6 +375,18 @@ void Viewer::MeshPlotGeometry::set_scalars(Span<f32 const> const& values)
     sg_update_buffer(scalars.buffer, to_range(values));
 }
 
+template <>
+Viewer::ContourColorMaterial const* Viewer::MeshPlot::material() const
+{
+    return materials.contour_color;
+}
+
+template <>
+Viewer::ContourLineMaterial const* Viewer::MeshPlot::material() const
+{
+    return materials.contour_line;
+}
+
 Viewer::View::View()
 {
     controls.orbit.apply(camera);
@@ -441,34 +397,18 @@ Viewer::View::View()
 void Viewer::View::update()
 {
     f64 const dt_s = App::delta_time_s();
+    f32 const t = saturate(controls.sensitivity * dt_s);
 
-    // Update and apply controls
-    {
-        f32 const t = saturate(controls.sensitivity * dt_s);
+    controls.orbit.update(t);
+    controls.orbit.apply(camera);
 
-        controls.orbit.update(t);
-        controls.orbit.apply(camera);
+    controls.zoom.update(t);
+    controls.zoom.apply(camera);
 
-        controls.zoom.update(t);
-        controls.zoom.apply(camera);
+    controls.pan.update(t);
+    controls.pan.apply(camera);
 
-        controls.pan.update(t);
-        controls.pan.apply(camera);
-
-        camera.pivot.position += (target.position - camera.pivot.position) * t;
-    }
-
-    // Update transforms
-    {
-        transforms.view_to_clip = make_perspective<NdcType_OpenGl>(
-            frustum.fov_y,
-            App::aspect(),
-            frustum.clip_near,
-            frustum.clip_far);
-
-        transforms.world_to_view = camera.transform().inverse_to_matrix();
-        transforms.world_to_clip = transforms.view_to_clip * transforms.world_to_view;
-    }
+    camera.pivot.position += (target.position - camera.pivot.position) * t;
 }
 
 void Viewer::View::frame_target()

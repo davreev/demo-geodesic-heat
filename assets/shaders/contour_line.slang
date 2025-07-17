@@ -8,12 +8,12 @@ struct Material
 }
 ConstantBuffer<Material> material;
 
-struct Instance
+struct Object
 {
     float4x4 local_to_clip;
     float4x4 local_to_view;
 }
-ConstantBuffer<Instance> instance;
+ConstantBuffer<Object> object;
 
 struct Vertex
 {
@@ -26,11 +26,11 @@ struct Vertex
 float4 vertex_main(Vertex v, out float3 view_position, out float3 view_normal, out float scalar) :
     SV_Position
 {
-    view_position = mul(instance.local_to_view, { v.position, 1.0 }).xyz;
+    view_position = mul(object.local_to_view, { v.position, 1.0 }).xyz;
     // NOTE(dr): This assumes local_to_view has uniform scaling
-    view_normal = mul(float3x3(instance.local_to_view), v.normal);
+    view_normal = mul(float3x3(object.local_to_view), v.normal);
     scalar = v.scalar;
-    return mul(instance.local_to_clip, { v.position, 1.0 });
+    return mul(object.local_to_clip, { v.position, 1.0 });
 }
 
 float4 shade_rim(float3 view_dir, float3 view_norm, float4 color, float4 color_base)

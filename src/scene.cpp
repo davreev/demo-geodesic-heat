@@ -401,9 +401,9 @@ void debug_draw_source_normals(Mat4<f32> const& local_to_view)
     sgl_end();
 }
 
-void draw_debug()
+void draw_debug(Viewer::DrawContext const& ctx)
 {
-    auto const& xforms = state.viewer.view.transforms;
+    auto const& xforms = ctx.transforms;
 
     sgl_defaults();
 
@@ -493,19 +493,19 @@ void draw(void* /*context*/)
         }
     }
 
-    // Draw mesh plot
+    // Submit draw calls
     {
-        Span<Viewer::MeshPlot const> const plots{&state.scene.mesh_plot, 1};
+        auto ctx = state.viewer.make_draw_context();
 
         if (state.params.show_color_contour)
-            state.viewer.draw<Viewer::ContourColorMaterial>(plots);
+            ctx.draw<Viewer::ContourColorMaterial>(state.scene.mesh_plot);
 
         if (state.params.show_line_contour)
-            state.viewer.draw<Viewer::ContourLineMaterial>(plots);
-    }
+            ctx.draw<Viewer::ContourLineMaterial>(state.scene.mesh_plot);
 
-    draw_debug();
-    draw_ui();
+        draw_debug(ctx);
+        draw_ui();
+    }
 }
 
 void handle_event(void* /*context*/, App::Event const& event)

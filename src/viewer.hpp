@@ -4,6 +4,7 @@
 
 #include <dr/basic_types.hpp>
 #include <dr/math_types.hpp>
+#include <dr/meta.hpp>
 
 #include <dr/app/app.hpp>
 #include <dr/app/camera.hpp>
@@ -70,11 +71,22 @@ struct Viewer
         void set_scalars(Span<f32 const> const& values);
     };
 
-    struct MeshPlot
+    template <typename Geometry_, typename... Materials_>
+    struct Object
+    {
+        using Geometry = Geometry_;
+        using Materials = TypePack<Materials_...>;
+
+        template <typename T>
+        using ConstPtr = T const*;
+
+        Geometry const* geometry;
+        std::tuple<ConstPtr<Materials_>...> materials;
+    };
+
+    struct MeshPlot : Object<MeshPlotGeometry, ContourColorMaterial, ContourLineMaterial>
     {
         Conformal3<f32> transform;
-        MeshPlotGeometry const* geometry;
-        std::tuple<ContourColorMaterial const*, ContourLineMaterial const*> materials;
     };
 
     struct View

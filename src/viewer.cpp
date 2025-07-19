@@ -1,7 +1,5 @@
 #include "viewer.hpp"
 
-#include <type_traits>
-
 #include <dr/container_utils.hpp>
 #include <dr/meta.hpp>
 
@@ -219,6 +217,8 @@ void submit_draw(Viewer::DrawContext& ctx, Viewer::MeshPlot const& object)
 template <int material_id, typename Object>
 void draw_impl(Viewer::DrawContext& ctx, Object const& object)
 {
+    using Material = typename Object::Materials::template At<material_id>;
+
     auto mat = std::get<material_id>(object.materials);
     if (mat == nullptr)
         return;
@@ -227,7 +227,6 @@ void draw_impl(Viewer::DrawContext& ctx, Object const& object)
     if (geom == nullptr)
         return;
 
-    using Material = std::remove_const_t<std::remove_pointer_t<decltype(mat)>>;
     bool bindings_dirty = false;
 
     // Update material

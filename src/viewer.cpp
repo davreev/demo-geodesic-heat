@@ -216,10 +216,10 @@ void submit_draw(Viewer::DrawContext& ctx, Viewer::MeshPlot const& object)
     sg_draw(0, num_indices, 1);
 }
 
-template <typename Material, typename Object>
-void draw(Viewer::DrawContext& ctx, Object const& object)
+template <int material_id, typename Object>
+void draw_impl(Viewer::DrawContext& ctx, Object const& object)
 {
-    auto mat = std::get<Material const*>(object.materials);
+    auto mat = std::get<material_id>(object.materials);
     if (mat == nullptr)
         return;
 
@@ -227,6 +227,7 @@ void draw(Viewer::DrawContext& ctx, Object const& object)
     if (geom == nullptr)
         return;
 
+    using Material = std::remove_const_t<std::remove_pointer_t<decltype(mat)>>;
     bool bindings_dirty = false;
 
     // Update material
@@ -269,15 +270,15 @@ void Viewer::reload_default_shaders()
 void Viewer::update() { view.update(); }
 
 template <>
-void Viewer::DrawContext::draw<Viewer::ContourColorMaterial>(Viewer::MeshPlot const& object)
+void Viewer::DrawContext::draw<0>(Viewer::MeshPlot const& object)
 {
-    dr::draw<Viewer::ContourColorMaterial>(*this, object);
+    draw_impl<0>(*this, object);
 }
 
 template <>
-void Viewer::DrawContext::draw<Viewer::ContourLineMaterial>(Viewer::MeshPlot const& object)
+void Viewer::DrawContext::draw<1>(Viewer::MeshPlot const& object)
 {
-    dr::draw<Viewer::ContourLineMaterial>(*this, object);
+    draw_impl<1>(*this, object);
 }
 
 Viewer::DrawContext Viewer::make_draw_context() const

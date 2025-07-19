@@ -132,7 +132,7 @@ struct Viewer
         void const* material;
         void const* geometry;
 
-        template <typename Material, typename Object>
+        template <int material_id, typename Object>
         void draw(Object const& object);
     };
 

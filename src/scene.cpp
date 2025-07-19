@@ -432,9 +432,7 @@ void open(void* /*context*/)
     {
         auto& scene = state.scene;
         scene.mesh_plot_geom.mesh = &scene.mesh_geom;
-
-        auto& plot = scene.mesh_plot;
-        plot.materials = {&scene.contour_color_material, &scene.contour_line_material};
+        scene.mesh_plot.materials = {&scene.contour_color_material, &scene.contour_line_material};
     }
 
     // Center camera on unit sphere
@@ -497,10 +495,10 @@ void draw(void* /*context*/)
         auto ctx = state.viewer.make_draw_context();
 
         if (state.params.show_color_contour)
-            ctx.draw<Viewer::ContourColorMaterial>(state.scene.mesh_plot);
+            ctx.draw<0>(state.scene.mesh_plot);
 
         if (state.params.show_line_contour)
-            ctx.draw<Viewer::ContourLineMaterial>(state.scene.mesh_plot);
+            ctx.draw<1>(state.scene.mesh_plot);
 
         draw_debug(ctx);
         draw_ui();

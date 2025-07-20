@@ -1,7 +1,6 @@
 #include "viewer.hpp"
 
 #include <dr/container_utils.hpp>
-#include <dr/meta.hpp>
 
 #include <dr/app/event_handlers.hpp>
 #include <dr/app/gfx_utils.hpp>
@@ -190,7 +189,7 @@ void set_geometry(Viewer::DrawContext& ctx, Viewer::MeshPlotGeometry const* geom
 }
 
 template <typename Material>
-void submit_draw(Viewer::DrawContext& ctx, Viewer::MeshPlot const& object)
+void submit_draw(Viewer::DrawContext const& ctx, Viewer::MeshPlot const& object)
 {
     using OkMaterials = TypePack<Viewer::ContourColorMaterial, Viewer::ContourLineMaterial>;
 
@@ -319,12 +318,12 @@ void Viewer::handle_event(App::Event const& event)
         input.last_num_touches);
 }
 
-GfxPipeline Viewer::ContourColorMaterial::make_custom_pipeline(GfxShader::Handle shader)
+GfxPipeline Viewer::ContourColorMaterial::make_pipeline(GfxShader::Handle shader)
 {
     return GfxPipeline::make(contour_color_pipeline_desc(shader));
 }
 
-GfxPipeline Viewer::ContourLineMaterial::make_custom_pipeline(GfxShader::Handle shader)
+GfxPipeline Viewer::ContourLineMaterial::make_pipeline(GfxShader::Handle shader)
 {
     return GfxPipeline::make(contour_line_pipeline_desc(shader));
 }

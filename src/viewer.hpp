@@ -15,9 +15,13 @@ namespace dr
 
 struct Viewer
 {
-    struct ContourColorMaterial
+    struct Material
     {
         GfxPipeline::Handle pipeline;
+    };
+
+    struct ContourColorMaterial : Material
+    {
         struct
         {
             GfxImage::Handle image;
@@ -26,17 +30,16 @@ struct Viewer
         f32 spacing;
         f32 offset;
 
-        static GfxPipeline make_custom_pipeline(GfxShader::Handle shader);
+        static GfxPipeline make_pipeline(GfxShader::Handle shader);
     };
 
-    struct ContourLineMaterial
+    struct ContourLineMaterial : Material
     {
-        GfxPipeline::Handle pipeline;
         f32 spacing;
         f32 line_width;
         f32 offset;
 
-        static GfxPipeline make_custom_pipeline(GfxShader::Handle shader);
+        static GfxPipeline make_pipeline(GfxShader::Handle shader);
     };
 
     template <isize stride_>

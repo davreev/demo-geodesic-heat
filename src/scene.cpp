@@ -334,9 +334,7 @@ void draw_main_window()
 {
     ImGui::SetNextWindowPos({20.0f, 20.0f}, ImGuiCond_FirstUseEver);
     constexpr int window_flags = ImGuiWindowFlags_AlwaysAutoResize;
-
     ImGui::Begin(scene_info.name, nullptr, window_flags);
-    ImGui::PushItemWidth(200.0f);
 
     if (ImGui::BeginTabBar("TabBar", ImGuiTabBarFlags_None))
     {

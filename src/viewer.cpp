@@ -289,7 +289,7 @@ Viewer::DrawContext Viewer::make_draw_context() const
         view.frustum.clip_near,
         view.frustum.clip_far);
 
-    ctx.transforms.world_to_view = view.camera.transform().inverse_to_matrix();
+    ctx.transforms.world_to_view = view.camera.current.transform().inverse_to_matrix();
     ctx.transforms.world_to_clip = ctx.transforms.view_to_clip * ctx.transforms.world_to_view;
 
     return ctx;
@@ -297,23 +297,23 @@ Viewer::DrawContext Viewer::make_draw_context() const
 
 void Viewer::handle_event(App::Event const& event)
 {
-    f32 const screen_to_view = dr::screen_to_view(view.frustum.fov_y, sapp_heightf());
     auto& ctrl = view.controls;
 
     camera_handle_mouse_event(
         event,
-        ctrl.zoom.target,
-        &ctrl.orbit.target,
-        &ctrl.pan.target,
-        screen_to_view,
+        ctrl.zoom,
+        &ctrl.orbit,
+        &ctrl.pan,
+        1.0f,
+        0.1f,
         input.mouse_down);
 
     camera_handle_touch_event(
         event,
-        ctrl.zoom.target,
-        &ctrl.orbit.target,
-        &ctrl.pan.target,
-        screen_to_view,
+        ctrl.zoom,
+        &ctrl.orbit,
+        &ctrl.pan,
+        1.0f,
         input.last_touch_points,
         input.last_num_touches);
 }
@@ -374,32 +374,29 @@ void Viewer::MeshPlotGeometry::set_scalars(Span<f32 const> const& values)
 
 Viewer::View::View()
 {
-    controls.orbit.apply(camera);
-    controls.zoom.apply(camera);
-    controls.pan.apply(camera);
+    controls.orbit.apply(camera.current);
+    controls.zoom.apply(camera.current);
+    controls.pan.apply(camera.current);
 }
 
 void Viewer::View::update()
 {
+    // Apply controls to target camera
+    controls.orbit.apply(camera.target);
+    controls.zoom.apply(camera.target);
+    controls.pan.apply(camera.target);
+    camera.target.pivot.position = target.position;
+
+    // Transition current camera to target
     f64 const dt_s = App::delta_time_s();
-    f32 const t = saturate(controls.sensitivity * dt_s);
-
-    controls.orbit.update(t);
-    controls.orbit.apply(camera);
-
-    controls.zoom.update(t);
-    controls.zoom.apply(camera);
-
-    controls.pan.update(t);
-    controls.pan.apply(camera);
-
-    camera.pivot.position += (target.position - camera.pivot.position) * t;
+    f32 const t = saturate(controls.stiffness * dt_s);
+    camera_transition(camera.current, camera.target, t);
 }
 
 void Viewer::View::frame_target()
 {
-    controls.zoom.target.distance = target.radius / std::sin(frustum.fov_y * 0.5);
-    controls.pan.target.offset = {};
+    controls.zoom.distance = target.radius / std::sin(frustum.fov_y * 0.5);
+    controls.pan.offset = {};
 }
 
 } // namespace dr

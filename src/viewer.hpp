@@ -94,7 +94,11 @@ struct Viewer
 
     struct View
     {
-        Camera camera;
+        struct
+        {
+            Camera current;
+            Camera target;
+        } camera;
 
         struct
         {
@@ -105,10 +109,10 @@ struct Viewer
 
         struct
         {
-            EasedOrbit orbit{{pi<f32> * -0.25f, pi<f32> * 0.25f}};
-            EasedZoom zoom{{1.0f, 1.0f, 0.01, 1000.0}};
-            EasedPan pan{};
-            f32 sensitivity{5.0f};
+            Orbit orbit{pi<f32> * 0.25f, pi<f32> * -0.25f};
+            Zoom zoom{1.0f, 1.0f, 0.01, 1000.0};
+            Pan pan{};
+            f32 stiffness{7.5f};
         } controls;
 
         struct

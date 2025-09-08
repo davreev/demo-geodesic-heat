@@ -39,14 +39,6 @@ float4 shade_rim(float3 view_dir, float3 view_norm, float4 color, float4 color_b
     return lerp(color_base, color, t * t * t);
 }
 
-float4 draw_contour(float f, float width, float4 color, float4 color_base)
-{
-    float df = fwidth(f);
-    float t = abs(frac(f + 0.5) - 0.5);
-    const float h = 0.5;
-    return lerp(color, color_base, smoothstep((width - h) * df, (width + h) * df, t));
-}
-
 [shader("fragment")]
 float4 fragment_main(
     float3 view_position,

@@ -92,49 +92,6 @@ struct Viewer
         Conformal3<f32> transform;
     };
 
-    struct View
-    {
-        struct
-        {
-            Camera current;
-            Camera target;
-        } camera;
-
-        struct
-        {
-            f32 fov_y{deg_to_rad(60.0f)};
-            f32 clip_near{0.01f};
-            f32 clip_far{1000.0f};
-        } frustum;
-
-        struct
-        {
-            Orbit orbit{pi<f32> * 0.25f, pi<f32> * -0.25f};
-            Zoom zoom{1.0f, 1.0f, 0.01, 1000.0};
-            Pan pan{};
-            f32 stiffness{7.5f};
-        } controls;
-
-        struct
-        {
-            Vec3<f32> position{};
-            f32 radius{1.0f};
-        } target;
-
-        View();
-
-        void update();
-
-        void frame_target();
-    };
-
-    struct Input
-    {
-        Vec2<f32> last_touch_points[2];
-        i8 last_num_touches;
-        bool mouse_down[3];
-    };
-
     struct DrawContext
     {
         using GfxBindings = sg_bindings;
@@ -155,18 +112,13 @@ struct Viewer
         void draw(Object const& object);
     };
 
-    View view;
-    Input input;
-
     static void init_default_resources();
 
     static void reload_default_shaders();
 
-    void update();
-
-    DrawContext make_draw_context() const;
-
-    void handle_event(App::Event const& event);
+    static DrawContext make_draw_context(
+        Mat4<f32> const& world_to_view,
+        Mat4<f32> const& view_to_clip);
 };
 
 } // namespace dr

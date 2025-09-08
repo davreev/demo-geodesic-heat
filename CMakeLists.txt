@@ -33,6 +33,7 @@ add_executable(
     "src/viewer.cpp"
     "src/impl.cpp"
     "src/main.cpp"
+    "src/orbit_camera.cpp"
     "src/scene.cpp"
     "src/tasks.cpp"
 )

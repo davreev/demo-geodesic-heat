@@ -265,17 +265,17 @@ void Viewer::reload_default_shaders()
     // ...
 }
 
-template <>
-void Viewer::DrawContext::draw<0>(Viewer::MeshPlot const& object)
+template <int material_id, typename Object_>
+void Viewer::DrawContext::draw(Object_ const& object)
 {
-    draw_impl<0>(*this, object);
+    draw_impl<material_id>(*this, object);
 }
 
-template <>
-void Viewer::DrawContext::draw<1>(Viewer::MeshPlot const& object)
-{
-    draw_impl<1>(*this, object);
-}
+template void Viewer::DrawContext::draw<0>(Viewer::MeshPlot const&);
+template void Viewer::DrawContext::draw<1>(Viewer::MeshPlot const&);
+// ...
+// ...
+// ...
 
 Viewer::DrawContext Viewer::make_draw_context(
     Mat4<f32> const& world_to_view,

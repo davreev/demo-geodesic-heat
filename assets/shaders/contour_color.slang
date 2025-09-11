@@ -40,8 +40,8 @@ float4 vertex_main(Vertex v, out float3 view_normal, out float scalar) : SV_Posi
 float4 fragment_main(float3 view_normal, float scalar, bool is_front_face: SV_IsFrontFace) :
     SV_Target
 {
-    float t = fract((scalar + material.offset) / material.spacing);
-    float3 view_norm = normalize(view_normal);
+    const float t = fract((scalar + material.offset) / material.spacing);
+    const float3 view_norm = normalize(view_normal);
     float4 col = { t, view_norm.x * 0.5 + 0.5, 0.5, 1.0 };
 
     apply_matcap_shading(matcap, view_norm, 1.0, 0.9, col);

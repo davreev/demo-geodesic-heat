@@ -35,7 +35,7 @@ float4 vertex_main(Vertex v, out float3 view_position, out float3 view_normal, o
 
 float4 shade_rim(float3 view_dir, float3 view_norm, float4 color, float4 color_base)
 {
-    float t = 1.0 - abs(dot(view_dir, view_norm));
+    const float t = 1.0 - abs(dot(view_dir, view_norm));
     return lerp(color_base, color, t * t * t);
 }
 
@@ -49,7 +49,7 @@ float4 fragment_main(
 {
     float4 col = { 0.85, 0.85, 0.85, 0.0 };
     col = shade_rim(normalize(view_position), view_normal, { 0.85, 0.85, 0.85, 0.2 }, col);
-    float f = (scalar + material.offset) / material.spacing;
+    const float f = (scalar + material.offset) / material.spacing;
 
     // Minor lines
     col = draw_contour(

@@ -9,12 +9,12 @@
 
 #include <dr/app/debug_draw.hpp>
 #include <dr/app/event_handlers.hpp>
+#include <dr/app/orbit_camera.hpp>
 #include <dr/app/shim/imgui.hpp>
 #include <dr/app/task_queue.hpp>
 #include <dr/app/thread_pool.hpp>
 
 #include "assets.hpp"
-#include "orbit_camera.hpp"
 #include "tasks.hpp"
 #include "viewer.hpp"
 
@@ -314,6 +314,7 @@ void draw_about_tab()
         ImGui::Text("Right click: pan");
         ImGui::Text("Scroll: zoom");
         ImGui::Text("F key: frame shape");
+        ImGui::Text("P key: toggle projection");
         ImGui::Spacing();
 
         ImGui::SeparatorText("References");
@@ -336,7 +337,9 @@ void draw_about_tab()
 void draw_main_window()
 {
     ImGui::SetNextWindowPos({20.0f, 20.0f}, ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSizeConstraints({200.0f, 0.0f}, {sapp_widthf(), sapp_heightf()});
     constexpr int window_flags = ImGuiWindowFlags_AlwaysAutoResize;
+
     ImGui::Begin(scene_info.name, nullptr, window_flags);
 
     if (ImGui::BeginTabBar("TabBar", ImGuiTabBarFlags_None))
@@ -441,7 +444,10 @@ void open(void* /*context*/)
         auto& cam = state.camera;
         cam.target.position = vec<3>(0.0f);
         cam.target.radius = 1.2f;
-        cam.frame_target();
+        cam.frame_target_now();
+
+        // Set default orbit
+        cam.controls.orbit = {{pi<f32> * 0.3f}, {pi<f32> * 0.1f}};
     }
 
     // Load default mesh asset and solve
@@ -460,7 +466,7 @@ void close(void* /*context*/)
 
 void update(void* /*context*/)
 {
-    state.camera.update();
+    state.camera.update(App::delta_time_s());
 
     if (state.params.animate)
         state.animate_time += App::delta_time();
@@ -496,7 +502,7 @@ void draw(void* /*context*/)
         OrbitCamera const& cam = state.camera;
         Viewer::DrawContext ctx = Viewer::make_draw_context(
             cam.make_world_to_view(),
-            cam.make_view_to_clip());
+            cam.make_view_to_clip<NdcType_OpenGl>(App::aspect()));
 
         if (state.params.show_color_contour)
             ctx.draw<0>(state.scene.mesh_plot);
@@ -511,7 +517,16 @@ void draw(void* /*context*/)
 
 void handle_event(void* /*context*/, App::Event const& event)
 {
-    state.camera.handle_event(event);
+    camera_handle_mouse_event(event, state.camera);
+    camera_handle_touch_event(event, state.camera);
+
+    constexpr auto toggle_projection = []() {
+        auto& cam = state.camera;
+        if (cam.projection == OrbitCamera::Projection_Perspective)
+            cam.projection = OrbitCamera::Projection_Orthographic;
+        else
+            cam.projection = OrbitCamera::Projection_Perspective;
+    };
 
     switch (event.type)
     {
@@ -523,6 +538,13 @@ void handle_event(void* /*context*/, App::Event const& event)
                 {
                     if (is_mouse_over(event))
                         state.camera.frame_target();
+
+                    break;
+                };
+                case SAPP_KEYCODE_P:
+                {
+                    if (is_mouse_over(event))
+                        toggle_projection();
 
                     break;
                 };

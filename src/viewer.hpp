@@ -5,9 +5,10 @@
 #include <dr/basic_types.hpp>
 #include <dr/math_types.hpp>
 #include <dr/meta.hpp>
+#include <dr/span.hpp>
+#include <dr/transform.hpp>
 
 #include <dr/app/app.hpp>
-#include <dr/app/camera.hpp>
 #include <dr/app/gfx_resource.hpp>
 
 namespace dr

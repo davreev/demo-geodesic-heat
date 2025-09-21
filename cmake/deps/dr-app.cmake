@@ -15,7 +15,7 @@ FetchContent_Declare(
 FetchContent_Declare(
     dr-app
     GIT_REPOSITORY https://github.com/davreev/dr-app.git
-    GIT_TAG cad2f20
+    GIT_TAG cf37fc70e337012e67e74177613ca3f443ceed24
 )
 
 FetchContent_MakeAvailable(dr-app)

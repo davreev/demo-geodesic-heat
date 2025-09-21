@@ -1,6 +1,7 @@
 #include "viewer.hpp"
 
 #include <dr/container_utils.hpp>
+#include <dr/linalg_reshape.hpp>
 
 #include <dr/app/event_handlers.hpp>
 #include <dr/app/gfx_utils.hpp>

@@ -43,7 +43,6 @@ struct {
 } constexpr scene_info{};
 
 struct {
-    Viewer viewer;
     struct {
         Viewer::ContourColorMaterial contour_color_material;
         Viewer::ContourLineMaterial contour_line_material;

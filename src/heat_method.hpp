@@ -137,15 +137,20 @@ struct HeatMethod
                     ut_[f_v[2]]);
 
                 Covec3<Real> const f_grad_dist = f_grad_ut / -f_grad_ut.norm();
-                auto const f_lap_dist = eval_divergence(
+
+                Real lap[3];
+                eval_divergence(
                     vert_coords[f_v[0]],
                     vert_coords[f_v[1]],
                     vert_coords[f_v[2]],
-                    f_grad_dist.transpose().eval());
+                    f_grad_dist.transpose().eval(),
+                    lap[0],
+                    lap[1],
+                    lap[2]);
 
-                lap_dist[f_v[0]] += f_lap_dist[0];
-                lap_dist[f_v[1]] += f_lap_dist[1];
-                lap_dist[f_v[2]] += f_lap_dist[2];
+                lap_dist[f_v[0]] += lap[0];
+                lap_dist[f_v[1]] += lap[1];
+                lap_dist[f_v[2]] += lap[2];
             }
         }
 

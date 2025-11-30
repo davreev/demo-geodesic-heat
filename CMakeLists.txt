@@ -2,15 +2,15 @@ cmake_minimum_required(VERSION 3.14)
 project(
     geodesic-heat
     VERSION 0.7.0
-    LANGUAGES C CXX
+    LANGUAGES CXX
 )
 
 #
 # Global config
 #
 
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 list(
     PREPEND CMAKE_MODULE_PATH 
@@ -29,7 +29,6 @@ set(app_name geodesic-heat)
 add_executable(
     ${app_name}
     "src/assets.cpp"
-    "src/viewer.c"
     "src/viewer.cpp"
     "src/impl.cpp"
     "src/main.cpp"

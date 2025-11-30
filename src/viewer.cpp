@@ -3,12 +3,22 @@
 #include <dr/linalg_reshape.hpp>
 
 #include "assets.hpp"
-#include "viewer.h"
 
 namespace dr
 {
 namespace
 {
+
+enum UniformBlock : u8
+{
+    UniformBlock_Material = 0,
+    UniformBlock_Geometry,
+    UniformBlock_Object,
+    _UniformBlock_Count,
+};
+
+// NOTE(dr): The assigned shader stage doesn't appear to matter when using OpenGL backends
+static sg_shader_stage const shader_stage_any = SG_SHADERSTAGE_VERTEX;
 
 template <typename T>
 struct DefaultResources;
@@ -24,6 +34,114 @@ struct DefaultResources<Viewer::ContourColorMaterial>
         GfxSampler sampler;
     } inline static matcap;
 
+    static sg_shader_desc shader_desc(char const* const vs_src, char const* const fs_src)
+    {
+        return {
+            .vertex_func{.source = vs_src},
+            .fragment_func{.source = fs_src},
+            .uniform_blocks{
+                {
+                    // Material block
+                    .stage = shader_stage_any,
+                    .size = sizeof(f32[2]),
+                    .glsl_uniforms{
+                        {
+                            .type = SG_UNIFORMTYPE_FLOAT,
+                            .glsl_name = "material.spacing",
+                        },
+                        {
+                            .type = SG_UNIFORMTYPE_FLOAT,
+                            .glsl_name = "material.offset",
+                        },
+                    },
+                },
+                {
+                    // Geometry block
+                    // ...
+                },
+                {
+                    // Object block
+                    .stage = shader_stage_any,
+                    .size = sizeof(f32[16 * 2]),
+                    .glsl_uniforms{
+                        {
+                            .type = SG_UNIFORMTYPE_FLOAT4,
+                            .array_count = 4,
+                            .glsl_name = "object.local_to_clip.data",
+                        },
+                        {
+                            .type = SG_UNIFORMTYPE_FLOAT4,
+                            .array_count = 4,
+                            .glsl_name = "object.local_to_view.data",
+                        },
+                    },
+                },
+            },
+            .images{
+                {.stage = shader_stage_any},
+            },
+            .samplers{
+                {.stage = shader_stage_any},
+            },
+            .image_sampler_pairs{
+                {
+                    .stage = shader_stage_any,
+                    .image_slot = 0,
+                    .sampler_slot = 0,
+                    .glsl_name = "matcap",
+                },
+            },
+        };
+    }
+
+    static sg_pipeline_desc pipeline_desc(sg_shader const shader)
+    {
+        return {
+            .shader = shader,
+            .layout{
+                .attrs{
+                    {.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3},
+                    {.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3},
+                    {.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT},
+                },
+            },
+            .depth{
+                .compare = SG_COMPAREFUNC_LESS,
+                .write_enabled = true,
+            },
+            .index_type = SG_INDEXTYPE_UINT32,
+            .face_winding = SG_FACEWINDING_CCW,
+        };
+    }
+
+    static sg_image_desc matcap_image_desc(
+        void const* const data,
+        int const width,
+        int const height)
+    {
+        return {
+            .width = width,
+            .height = height,
+            .usage = SG_USAGE_IMMUTABLE,
+            .pixel_format = SG_PIXELFORMAT_RGBA8,
+            .data{
+                .subimage{
+                    {
+                        {.ptr = data, .size = usize(width * height * 4)},
+                    },
+                },
+            },
+        };
+    }
+
+    static sg_sampler_desc matcap_sampler_desc(void)
+    {
+        return {
+            .min_filter = SG_FILTER_LINEAR,
+            .mag_filter = SG_FILTER_LINEAR,
+        };
+    }
+
     static void init_shader()
     {
         ShaderAsset const* vs = get_asset(AssetHandle::Shader_ContourColorVert, true);
@@ -32,7 +150,7 @@ struct DefaultResources<Viewer::ContourColorMaterial>
         ShaderAsset const* fs = get_asset(AssetHandle::Shader_ContourColorFrag, true);
         assert(fs);
 
-        shader.init(contour_color_shader_desc(vs->src.c_str(), fs->src.c_str()));
+        shader.init(shader_desc(vs->src.c_str(), fs->src.c_str()));
         assert(shader.is_valid());
     };
 
@@ -43,7 +161,7 @@ struct DefaultResources<Viewer::ContourColorMaterial>
         shader = GfxShader::alloc();
         init_shader();
 
-        pipeline = GfxPipeline::make(contour_color_pipeline_desc(shader));
+        pipeline = GfxPipeline::make(pipeline_desc(shader));
         assert(pipeline.is_valid());
 
         {
@@ -51,10 +169,10 @@ struct DefaultResources<Viewer::ContourColorMaterial>
             assert(image);
 
             matcap.image = GfxImage::make(
-                contour_color_matcap_image_desc(image->data.get(), image->width, image->height));
+                matcap_image_desc(image->data.get(), image->width, image->height));
             assert(matcap.image.is_valid());
 
-            matcap.sampler = GfxSampler::make(contour_color_matcap_sampler_desc());
+            matcap.sampler = GfxSampler::make(matcap_sampler_desc());
             assert(matcap.sampler.is_valid());
         }
     };
@@ -66,6 +184,86 @@ struct DefaultResources<Viewer::ContourLineMaterial>
     inline static GfxPipeline pipeline;
     inline static GfxShader shader;
 
+    static sg_shader_desc shader_desc(char const* const vs_src, char const* const fs_src)
+    {
+        return {
+            .vertex_func{.source = vs_src},
+            .fragment_func{.source = fs_src},
+            .uniform_blocks{
+                {
+                    // Material block
+                    .stage = shader_stage_any,
+                    .size = sizeof(f32[3]),
+                    .glsl_uniforms{
+                        {
+                            .type = SG_UNIFORMTYPE_FLOAT,
+                            .glsl_name = "material.spacing",
+                        },
+                        {
+                            .type = SG_UNIFORMTYPE_FLOAT,
+                            .glsl_name = "material.line_width",
+                        },
+                        {
+                            .type = SG_UNIFORMTYPE_FLOAT,
+                            .glsl_name = "material.offset",
+                        },
+                    },
+                },
+                {
+                    // Geometry block
+                    // ...
+                },
+                {
+                    // Object block
+                    .stage = shader_stage_any,
+                    .size = sizeof(f32[16 * 2]),
+                    .glsl_uniforms{
+                        {
+                            .type = SG_UNIFORMTYPE_FLOAT4,
+                            .array_count = 4,
+                            .glsl_name = "object.local_to_clip.data",
+                        },
+                        {
+                            .type = SG_UNIFORMTYPE_FLOAT4,
+                            .array_count = 4,
+                            .glsl_name = "object.local_to_view.data",
+
+                        },
+                    },
+                },
+            },
+        };
+    }
+
+    static sg_pipeline_desc pipeline_desc(sg_shader const shader)
+    {
+        return {
+            .shader = shader,
+            .layout{
+                .attrs{
+                    {.buffer_index = 0, .format = SG_VERTEXFORMAT_FLOAT3},
+                    {.buffer_index = 1, .format = SG_VERTEXFORMAT_FLOAT3},
+                    {.buffer_index = 2, .format = SG_VERTEXFORMAT_FLOAT},
+                },
+            },
+            .depth{
+                .compare = SG_COMPAREFUNC_LESS_EQUAL,
+                .write_enabled = false,
+            },
+            .colors{
+                {
+                    .blend{
+                        .enabled = true,
+                        .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+                        .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                    },
+                },
+            },
+            .index_type = SG_INDEXTYPE_UINT32,
+            .face_winding = SG_FACEWINDING_CCW,
+        };
+    }
+
     static void init_shader()
     {
         ShaderAsset const* vs = get_asset(AssetHandle::Shader_ContourLineVert, true);
@@ -74,7 +272,7 @@ struct DefaultResources<Viewer::ContourLineMaterial>
         ShaderAsset const* fs = get_asset(AssetHandle::Shader_ContourLineFrag, true);
         assert(fs);
 
-        shader.init(contour_line_shader_desc(vs->src.c_str(), fs->src.c_str()));
+        shader.init(shader_desc(vs->src.c_str(), fs->src.c_str()));
         assert(shader.is_valid());
     };
 
@@ -85,9 +283,44 @@ struct DefaultResources<Viewer::ContourLineMaterial>
         shader = GfxShader::alloc();
         init_shader();
 
-        pipeline = GfxPipeline::make(contour_line_pipeline_desc(shader));
+        pipeline = GfxPipeline::make(pipeline_desc(shader));
         assert(pipeline.is_valid());
     };
+};
+
+template <>
+struct DefaultResources<Viewer::MeshGeometry>
+{
+    static sg_buffer_desc vertex_buffer_desc(usize const size)
+    {
+        return {
+            .size = size,
+            .type = SG_BUFFERTYPE_VERTEXBUFFER,
+            .usage = SG_USAGE_DYNAMIC,
+        };
+    }
+
+    static sg_buffer_desc index_buffer_desc(usize const size)
+    {
+        return {
+            .size = size,
+            .type = SG_BUFFERTYPE_INDEXBUFFER,
+            .usage = SG_USAGE_DYNAMIC,
+        };
+    }
+};
+
+template <>
+struct DefaultResources<Viewer::MeshPlotGeometry>
+{
+    static sg_buffer_desc buffer_desc(usize const size)
+    {
+        return {
+            .size = size,
+            .type = SG_BUFFERTYPE_VERTEXBUFFER,
+            .usage = SG_USAGE_DYNAMIC,
+        };
+    }
 };
 
 // Returns the given handle if it's valid. Otherwise, returns the given default.
@@ -287,24 +520,28 @@ Viewer::DrawContext Viewer::make_draw_context(
 
 GfxPipeline Viewer::ContourColorMaterial::make_pipeline(GfxShader::Handle shader)
 {
-    return GfxPipeline::make(contour_color_pipeline_desc(shader));
+    using Default = DefaultResources<ContourColorMaterial>;
+    return GfxPipeline::make(Default::pipeline_desc(shader));
 }
 
 GfxPipeline Viewer::ContourLineMaterial::make_pipeline(GfxShader::Handle shader)
 {
-    return GfxPipeline::make(contour_line_pipeline_desc(shader));
+    using Default = DefaultResources<ContourLineMaterial>;
+    return GfxPipeline::make(Default::pipeline_desc(shader));
 }
 
 void Viewer::MeshGeometry::set_vertices(
     Span<Vec3<f32> const> const& positions,
     Span<Vec3<f32> const> const& normals)
 {
+    using Default = DefaultResources<MeshGeometry>;
+
     assert(positions.size() == normals.size());
 
     vertices.count = positions.size();
     if (vertices.count > vertices.capacity)
     {
-        init_resource(vertices.buffer, mesh_vertex_buffer_desc(vertices.size()));
+        init_resource(vertices.buffer, Default::vertex_buffer_desc(vertices.size()));
         vertices.capacity = vertices.count;
     }
 
@@ -314,10 +551,12 @@ void Viewer::MeshGeometry::set_vertices(
 
 void Viewer::MeshGeometry::set_indices(Span<Vec3<i32> const> const& faces)
 {
+    using Default = DefaultResources<MeshGeometry>;
+
     indices.count = faces.size() * 3;
     if (indices.count > indices.capacity)
     {
-        init_resource(indices.buffer, mesh_index_buffer_desc(indices.size()));
+        init_resource(indices.buffer, Default::index_buffer_desc(indices.size()));
         indices.capacity = indices.count;
     }
 
@@ -326,13 +565,15 @@ void Viewer::MeshGeometry::set_indices(Span<Vec3<i32> const> const& faces)
 
 void Viewer::MeshPlotGeometry::set_scalars(Span<f32 const> const& values)
 {
+    using Default = DefaultResources<MeshPlotGeometry>;
+
     assert(mesh != nullptr);
     assert(values.size() == mesh->vertices.count);
 
     scalars.count = values.size();
     if (scalars.count > scalars.capacity)
     {
-        init_resource(scalars.buffer, mesh_plot_buffer_desc(scalars.size()));
+        init_resource(scalars.buffer, Default::buffer_desc(scalars.size()));
         scalars.capacity = scalars.count;
     }
 

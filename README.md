@@ -10,8 +10,7 @@ Try it here: https://davreev.gitlab.io/demos/geodesic-heat/
 
 ## Build
 
-This project can be built to run natively or in a web browser. Build instructions vary slightly
-between the two targets.
+This project can be built to run natively or in a web browser.
 
 ### Native Build
 

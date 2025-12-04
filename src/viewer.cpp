@@ -34,7 +34,7 @@ struct DefaultResources<Viewer::ContourColorMaterial>
         GfxSampler sampler;
     } inline static matcap;
 
-    static sg_shader_desc shader_desc(char const* const vs_src, char const* const fs_src)
+    static GfxShader::Desc shader_desc(char const* const vs_src, char const* const fs_src)
     {
         return {
             .vertex_func{.source = vs_src},
@@ -94,7 +94,7 @@ struct DefaultResources<Viewer::ContourColorMaterial>
         };
     }
 
-    static sg_pipeline_desc pipeline_desc(sg_shader const shader)
+    static GfxPipeline::Desc pipeline_desc(GfxShader::Handle const shader)
     {
         return {
             .shader = shader,
@@ -114,7 +114,7 @@ struct DefaultResources<Viewer::ContourColorMaterial>
         };
     }
 
-    static sg_image_desc matcap_image_desc(
+    static GfxImage::Desc matcap_image_desc(
         void const* const data,
         int const width,
         int const height)
@@ -134,7 +134,7 @@ struct DefaultResources<Viewer::ContourColorMaterial>
         };
     }
 
-    static sg_sampler_desc matcap_sampler_desc(void)
+    static GfxSampler::Desc matcap_sampler_desc(void)
     {
         return {
             .min_filter = SG_FILTER_LINEAR,
@@ -184,7 +184,7 @@ struct DefaultResources<Viewer::ContourLineMaterial>
     inline static GfxPipeline pipeline;
     inline static GfxShader shader;
 
-    static sg_shader_desc shader_desc(char const* const vs_src, char const* const fs_src)
+    static GfxShader::Desc shader_desc(char const* const vs_src, char const* const fs_src)
     {
         return {
             .vertex_func{.source = vs_src},
@@ -235,7 +235,7 @@ struct DefaultResources<Viewer::ContourLineMaterial>
         };
     }
 
-    static sg_pipeline_desc pipeline_desc(sg_shader const shader)
+    static GfxPipeline::Desc pipeline_desc(GfxShader::Handle const shader)
     {
         return {
             .shader = shader,
@@ -291,7 +291,7 @@ struct DefaultResources<Viewer::ContourLineMaterial>
 template <>
 struct DefaultResources<Viewer::MeshGeometry>
 {
-    static sg_buffer_desc vertex_buffer_desc(usize const size)
+    static GfxBuffer::Desc vertex_buffer_desc(usize const size)
     {
         return {
             .size = size,
@@ -300,7 +300,7 @@ struct DefaultResources<Viewer::MeshGeometry>
         };
     }
 
-    static sg_buffer_desc index_buffer_desc(usize const size)
+    static GfxBuffer::Desc index_buffer_desc(usize const size)
     {
         return {
             .size = size,
@@ -313,7 +313,7 @@ struct DefaultResources<Viewer::MeshGeometry>
 template <>
 struct DefaultResources<Viewer::MeshPlotGeometry>
 {
-    static sg_buffer_desc buffer_desc(usize const size)
+    static GfxBuffer::Desc buffer_desc(usize const size)
     {
         return {
             .size = size,

@@ -29,11 +29,12 @@ set(app_name geodesic-heat)
 add_executable(
     ${app_name}
     "src/assets.cpp"
-    "src/viewer.cpp"
     "src/impl.cpp"
     "src/main.cpp"
+    "src/renderer.cpp"
     "src/scene.cpp"
     "src/tasks.cpp"
+    "src/utils.cpp"
 )
 
 include(deps/dr-app)

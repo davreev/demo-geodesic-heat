@@ -1,5 +1,12 @@
 import "modules/common.slang";
 
+struct Pass
+{
+    float4x4 world_to_view;
+    float4x4 world_to_clip;
+}
+ConstantBuffer<Pass> pass;
+
 struct Material
 {
     float spacing;
@@ -9,8 +16,7 @@ ConstantBuffer<Material> material;
 
 struct Object
 {
-    float4x4 local_to_clip;
-    float4x4 local_to_view;
+    float4x4 local_to_world;
 }
 ConstantBuffer<Object> object;
 
@@ -30,10 +36,13 @@ struct Vertex
 [shader("vertex")]
 float4 vertex_main(Vertex v, out float3 view_normal, out float scalar) : SV_Position
 {
+    let local_to_view = mul(pass.world_to_view, object.local_to_world);
+    let local_to_clip = mul(pass.world_to_clip, object.local_to_world);
+
     // NOTE(dr): This assumes local_to_view has uniform scaling
-    view_normal = normalize(mul(float3x3(object.local_to_view), v.normal));
+    view_normal = normalize(mul(float3x3(local_to_view), v.normal));
     scalar = v.scalar;
-    return mul(object.local_to_clip, { v.position, 1.0 });
+    return mul(local_to_clip, { v.position, 1.0 });
 }
 
 [shader("fragment")]

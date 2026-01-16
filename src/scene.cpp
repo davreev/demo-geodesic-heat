@@ -15,59 +15,59 @@
 #include <dr/app/thread_pool.hpp>
 
 #include "assets.hpp"
+#include "renderer.hpp"
 #include "tasks.hpp"
-#include "viewer.hpp"
+#include "utils.hpp"
 
 namespace dr
 {
 namespace
 {
 
-template <typename Scalar>
-struct Param
+struct
 {
-    Scalar value{};
-    Scalar min{};
-    Scalar max{};
-};
-
-// clang-format off
-struct {
     char const* name = "Geodesic Heat";
     char const* author = "David Reeves";
-    struct {
+    struct
+    {
         u16 major{0};
         u16 minor{7};
         u16 patch{0};
     } version;
-} constexpr scene_info{};
+} constexpr scene_info;
 
-struct {
-    struct {
-        Viewer::ContourColorMaterial contour_color_material;
-        Viewer::ContourLineMaterial contour_line_material;
-        Viewer::MeshGeometry mesh_geom;
-        Viewer::MeshPlotGeometry mesh_plot_geom;
-        Viewer::MeshPlot mesh_plot;
-    } scene;
-
+struct
+{
+    Renderer renderer;
     OrbitCamera camera;
 
-    MeshAsset const* mesh;
-    DynamicArray<i32> source_vertices;
+    struct
+    {
+        MeshAsset const* asset;
+        DynamicArray<i32> source_vertices;
+        Conformal3<f32> transform;
+        struct
+        {
+            Buffer<sizeof(f32[6])> vertex;
+            Buffer<sizeof(i32)> index;
+            Buffer<sizeof(f32)> func;
+        } gpu;
+    } mesh;
+
     Random<> random{1};
     u64 animate_time;
 
     TaskQueue task_queue;
-    struct {
+    struct
+    {
         LoadMeshAsset load_mesh_asset;
         SolveDistance solve_distance;
     } tasks;
 
-    struct {
+    struct
+    {
         AssetHandle::Mesh mesh_handle;
         Param<i32> num_sources{1, 1, 10};
-        Param<f32> solve_time{0.002f, 0.001f, 0.01f};
         Param<f32> contour_spacing{0.1f, 0.0f, 1.0f};
         Param<f32> contour_line_width{0.3f, 0.0f, 1.0f};
         Param<f32> contour_speed{0.1f, 0.0f, 1.0f};
@@ -77,65 +77,69 @@ struct {
         bool animate{true};
     } params;
 } state{};
-// clang-format on
 
 void append_source_vertices()
 {
-    assert(state.mesh);
-    auto random_vert = state.random.generator<i32>(0, state.mesh->vertices.count());
+    auto& mesh = state.mesh;
 
-    auto& src_verts = state.source_vertices;
+    assert(mesh.asset);
+    auto random_vert = state.random.generator<i32>(0, mesh.asset->vertices.count());
+
+    auto& src_verts = mesh.source_vertices;
     while (size(src_verts) < state.params.num_sources.value)
         src_verts.push_back(random_vert());
 }
 
 void reset_source_vertices()
 {
-    assert(state.mesh);
-    auto random_vert = state.random.generator<i32>(0, state.mesh->vertices.count());
+    auto& mesh = state.mesh;
 
-    auto& src_verts = state.source_vertices;
+    assert(mesh.asset);
+    auto random_vert = state.random.generator<i32>(0, mesh.asset->vertices.count());
+
+    auto& src_verts = mesh.source_vertices;
     for (isize i = 0; i < size(src_verts); ++i)
         src_verts[i] = random_vert();
 }
 
-void set_mesh(MeshAsset const* mesh)
+void set_mesh(MeshAsset const* asset)
 {
-    state.mesh = mesh;
+    assert(asset);
+
+    auto& mesh = state.mesh;
+    mesh.asset = asset;
 
     // Initialize source vertices
-    {
-        state.source_vertices.resize(state.params.num_sources.value);
-        reset_source_vertices();
-    }
+    mesh.source_vertices.resize(state.params.num_sources.value);
+    reset_source_vertices();
 
-    // Update mesh geometry
-    {
-        auto& geom = state.scene.mesh_geom;
-        geom.set_indices(as_span(mesh->faces.vertex_ids));
-        geom.set_vertices(as_span(mesh->vertices.positions), as_span(mesh->vertices.normals));
-    }
+    // Update GPU buffers
+    set_mesh_indices(mesh.gpu.index, as_span(asset->faces.vertex_ids));
+    set_mesh_vertices(
+        mesh.gpu.vertex,
+        as_span(asset->vertices.positions),
+        as_span(asset->vertices.normals));
+    mesh.gpu.func.count = 0;
 
-    // Update mesh plot
-    {
-        auto& plot = state.scene.mesh_plot;
-        plot.geometry = nullptr;
-
-        // Fit to unit sphere in world space
-        auto const& [cen, rad] = mesh->bounds;
-        f32 const s = 1.0f / rad;
-        plot.transform.translation = -cen * s;
-        plot.transform.scale = s;
-    }
+    // Fit to unit sphere in world space
+    auto const& [cen, rad] = asset->bounds;
+    f32 const s = 1.0f / rad;
+    mesh.transform = {
+        .translation = -cen * s,
+        .scale = s,
+    };
 }
 
-void set_plot(Span<f32 const> const& values)
+void mesh_set_plot(Span<f32 const> const& values)
 {
-    auto& geom = state.scene.mesh_plot_geom;
-    geom.set_scalars(values);
+    auto& mesh = state.mesh;
+    set_mesh_vertices(mesh.gpu.func, values);
+}
 
-    auto& plot = state.scene.mesh_plot;
-    plot.geometry = &geom;
+bool mesh_has_plot()
+{
+    auto& mesh = state.mesh;
+    return mesh.gpu.func.count > 0;
 }
 
 void schedule_task(SolveDistance& task)
@@ -148,15 +152,15 @@ void schedule_task(SolveDistance& task)
         {
             case Event::BeforeSubmit:
             {
-                task->input.mesh = state.mesh;
+                task->input.mesh = state.mesh.asset;
                 task->input.source_vertices = //
-                    as_span(state.source_vertices).front(state.params.num_sources.value);
+                    as_span(state.mesh.source_vertices).front(state.params.num_sources.value);
 
                 return true;
             };
             case Event::AfterComplete:
             {
-                set_plot(task->output.distance);
+                mesh_set_plot(task->output.distance);
                 return true;
             };
             default:
@@ -387,13 +391,16 @@ void debug_draw_source_normals(Mat4<f32> const& local_to_view)
     sgl_begin_lines();
     sgl_c3f(1.0f, 1.0f, 1.0f);
 
-    auto const& verts = state.mesh->vertices;
-    i32 const num_sources = state.params.num_sources.value;
-    f32 scale = state.mesh->bounds.radius * 0.2f;
+    auto const& mesh = state.mesh;
+    assert(mesh.asset);
 
+    auto const& verts = mesh.asset->vertices;
+    f32 const scale = mesh.asset->bounds.radius * 0.2f;
+
+    i32 const num_sources = state.params.num_sources.value;
     for (i32 i = 0; i < num_sources; ++i)
     {
-        auto const v = state.source_vertices[i];
+        auto const v = mesh.source_vertices[i];
         auto const p0 = verts.positions.col(v);
         auto const p1 = (p0 - verts.normals.col(v) * scale).eval();
 
@@ -404,22 +411,20 @@ void debug_draw_source_normals(Mat4<f32> const& local_to_view)
     sgl_end();
 }
 
-void draw_debug(Viewer::DrawContext const& ctx)
+void draw_debug(Mat4<f32> const& world_to_view, Mat4<f32> const& view_to_clip)
 {
-    auto const& xforms = ctx.transforms;
-
     sgl_defaults();
 
     sgl_matrix_mode_projection();
-    sgl_load_matrix(xforms.view_to_clip.data());
+    sgl_load_matrix(view_to_clip.data());
 
-    debug_draw_axes(xforms.world_to_view, 0.1f);
+    debug_draw_axes(world_to_view, 0.1f);
 
-    auto const& plot = state.scene.mesh_plot;
-    if (plot.geometry)
+    // Only draw source normals once plot is available
+    if (mesh_has_plot())
     {
-        Mat4<f32> const local_to_world = plot.transform.to_matrix();
-        debug_draw_source_normals(xforms.world_to_view * local_to_world);
+        Mat4<f32> const local_to_world = state.mesh.transform.to_matrix();
+        debug_draw_source_normals(world_to_view * local_to_world);
     }
 
     sgl_draw();
@@ -429,13 +434,14 @@ void open(void* /*context*/)
 {
     ThreadPool::start(1);
 
-    Viewer::init_default_resources();
+    init_default_gfx_resources();
 
-    // Initialize scene
+    // Pre-allocate mesh resource handles
     {
-        auto& scene = state.scene;
-        scene.mesh_plot_geom.mesh = &scene.mesh_geom;
-        scene.mesh_plot.materials = {&scene.contour_color_material, &scene.contour_line_material};
+        auto& mesh = state.mesh;
+        mesh.gpu.index.buffer = GfxBuffer::alloc();
+        mesh.gpu.vertex.buffer = GfxBuffer::alloc();
+        mesh.gpu.func.buffer = GfxBuffer::alloc();
     }
 
     // Center camera on unit sphere
@@ -446,7 +452,7 @@ void open(void* /*context*/)
         cam.frame_target_now();
 
         // Set default orbit
-        cam.controls.orbit = {{pi<f32> * 0.3f}, {pi<f32> * 0.1f}};
+        cam.controls.orbit = {.polar{pi<f32> * 0.3f}, .azimuth{pi<f32> * 0.1f}};
     }
 
     // Load default mesh asset and solve
@@ -475,43 +481,56 @@ void update(void* /*context*/)
 
 void draw(void* /*context*/)
 {
-    // Update material params
-    {
-        f32 const offset = state.params.contour_offset.value;
-        f32 const speed = state.params.contour_speed.value;
-        f32 const time = stm_sec(state.animate_time);
-        f32 const offset_now = offset + time * speed;
+    auto const& cam = state.camera;
+    Mat4<f32> const world_to_view = cam.make_world_to_view();
+    Mat4<f32> const view_to_clip = cam.make_view_to_clip(App::aspect());
 
-        {
-            auto& mat = state.scene.contour_color_material;
-            mat.spacing = state.params.contour_spacing.value;
-            mat.offset = offset_now;
-        }
+    auto const& params = state.params;
+    f32 const offset = params.contour_offset.value;
+    f32 const speed = params.contour_speed.value;
+    f32 const time = stm_sec(state.animate_time);
+    f32 const offset_now = offset + time * speed;
 
-        {
-            auto& mat = state.scene.contour_line_material;
-            mat.spacing = state.params.contour_spacing.value;
-            mat.line_width = state.params.contour_line_width.value;
-            mat.offset = offset_now;
-        }
-    }
+    ContourColorMaterial const contour_color_mat{
+        .spacing = params.contour_spacing.value,
+        .offset = offset_now,
+    };
 
-    // Submit draw calls
-    {
-        OrbitCamera const& cam = state.camera;
-        Viewer::DrawContext ctx = Viewer::make_draw_context(
-            cam.make_world_to_view(),
-            cam.make_view_to_clip<NdcType_OpenGl>(App::aspect()));
+    ContourLineMaterial const contour_line_mat{
+        .spacing = params.contour_spacing.value,
+        .line_width = params.contour_line_width.value,
+        .offset = offset_now,
+    };
 
-        if (state.params.show_color_contour)
-            ctx.draw<0>(state.scene.mesh_plot);
+    auto const& mesh = state.mesh;
 
-        if (state.params.show_line_contour)
-            ctx.draw<1>(state.scene.mesh_plot);
+    MeshPlotGeometry const mesh_plot_geom{
+        .index = mesh.gpu.index.buffer,
+        .vertex = mesh.gpu.vertex.buffer,
+        .func = mesh.gpu.func.buffer,
+        .index_count = mesh.gpu.index.count,
+        .vertex_count = mesh.gpu.vertex.count,
+    };
 
-        draw_debug(ctx);
-        draw_ui();
-    }
+    MeshPlot const mesh_plot{
+        .geometry = &mesh_plot_geom,
+        .materials{
+            .contour_color = params.show_color_contour ? &contour_color_mat : nullptr,
+            .contour_line = params.show_line_contour ? &contour_line_mat : nullptr,
+        },
+        .transform = mesh.transform,
+    };
+
+    state.renderer.render(SceneDesc{
+        .mesh_plots = {&mesh_plot, mesh_has_plot() ? 1 : 0},
+        .camera{
+            .world_to_view = world_to_view,
+            .view_to_clip = view_to_clip,
+        },
+    });
+
+    draw_debug(world_to_view, view_to_clip);
+    draw_ui();
 }
 
 void handle_event(void* /*context*/, App::Event const& event)
@@ -550,7 +569,7 @@ void handle_event(void* /*context*/, App::Event const& event)
                 case SAPP_KEYCODE_R:
                 {
                     if (is_mouse_over(event))
-                        Viewer::reload_default_shaders();
+                        reload_default_shaders();
 
                     break;
                 };

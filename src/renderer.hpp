@@ -3,6 +3,7 @@
 #include <dr/basic_types.hpp>
 #include <dr/dynamic_array.hpp>
 #include <dr/math_types.hpp>
+#include <dr/sliced_array.hpp>
 #include <dr/span.hpp>
 #include <dr/transform.hpp>
 
@@ -23,8 +24,6 @@ struct Renderer
         UnlitOpaque,
         UnlitTransparent,
         // ...
-        // ...
-        // ...
     };
 
     struct DrawCommand
@@ -35,25 +34,10 @@ struct Renderer
         void const* geometry{};
         Span<u8 const> material_uniform_data;
         Span<u8 const> geometry_uniform_data;
-        struct
-        {
-            i32 start{};
-            i32 size{};
-        } object_uniform_slice;
+        i32 uniform_slice{};
         i32 base_element{};
         i32 num_elements{};
         i32 num_instances{};
-    };
-
-    struct PassContext
-    {
-        DynamicArray<DrawCommand> draw_cmds;
-        DynamicArray<u8> uniform_data;
-        struct
-        {
-            i32 start{};
-            i32 size{};
-        } pass_uniform_slice;
     };
 
     /// Specialize for different scene types
@@ -61,17 +45,23 @@ struct Renderer
     void render(Scene const& scene);
 
     /// Specialize for different scene object types
-    template <Renderer::Pass pass, typename Source>
-    static void emit_draw_cmds(Source const& /*src*/, Renderer::PassContext& /*ctx*/)
+    template <Pass pass, typename Source>
+    static void emit_draw_cmds(
+        Source const& /*src*/,
+        DynamicArray<DrawCommand>& /*draw_cmds*/,
+        SlicedArray<u8>& /*uniform_data*/)
     {
         // No draw commands emitted by default
     }
 
   private:
-    PassContext pass_;
+    DynamicArray<DrawCommand> draw_cmds_;
+    SlicedArray<u8> uniform_data_;
 
     /// Orders and submits cached draw commands
-    static void submit_draw_cmds(Renderer::PassContext& ctx);
+    static void submit_draw_cmds(
+        Span<DrawCommand> const& draw_cmds,
+        SlicedArray<u8> const& uniform_data);
 };
 
 /*
@@ -126,8 +116,6 @@ struct SceneDesc
 {
     Span<MeshPlot const> mesh_plots{};
     // ...
-    // ...
-    // ...
 
     struct
     {
@@ -142,12 +130,14 @@ void Renderer::render(SceneDesc const& scene);
 template <>
 void Renderer::emit_draw_cmds<Renderer::Pass::UnlitOpaque>(
     MeshPlot const& src,
-    Renderer::PassContext& ctx);
+    DynamicArray<DrawCommand>& draw_cmds,
+    SlicedArray<u8>& uniform_data);
 
 template <>
 void Renderer::emit_draw_cmds<Renderer::Pass::UnlitTransparent>(
     MeshPlot const& src,
-    Renderer::PassContext& ctx);
+    DynamicArray<DrawCommand>& draw_cmds,
+    SlicedArray<u8>& uniform_data);
 
 void init_default_gfx_resources();
 

@@ -18,7 +18,7 @@ struct LoadMeshAsset
 
     struct
     {
-        MeshAsset const* mesh;
+        MeshAsset const* mesh{};
     } output;
 
     void operator()();
@@ -35,7 +35,7 @@ struct SolveDistance
 
     struct
     {
-        MeshAsset const* mesh;
+        MeshAsset const* mesh{};
         Span<const i32> source_vertices;
     } input;
 
@@ -50,7 +50,7 @@ struct SolveDistance
   private:
     HeatMethod<f32, i32> solver_;
     DynamicArray<f32> distance_;
-    MeshAsset const* prev_mesh_;
+    MeshAsset const* prev_mesh_{};
 };
 
 } // namespace dr

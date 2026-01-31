@@ -43,19 +43,19 @@ struct
 
     struct
     {
-        MeshAsset const* asset;
-        DynamicArray<i32> source_vertices;
-        Conformal3<f32> transform;
+        MeshAsset const* asset{};
+        DynamicArray<i32> src_verts;
+        Conformal3<f32> xform;
         struct
         {
-            Buffer<sizeof(f32[6])> vertex;
             Buffer<sizeof(i32)> index;
+            Buffer<sizeof(f32[6])> vertex;
             Buffer<sizeof(f32)> func;
         } gpu;
     } mesh;
 
     Random<> random{1};
-    u64 animate_time;
+    u64 animate_time{};
 
     TaskQueue task_queue;
     struct
@@ -66,7 +66,7 @@ struct
 
     struct
     {
-        AssetHandle::Mesh mesh_handle;
+        AssetHandle::Mesh mesh_handle{};
         Param<i32> num_sources{1, 1, 10};
         Param<f32> contour_spacing{0.1f, 0.0f, 1.0f};
         Param<f32> contour_line_width{0.3f, 0.0f, 1.0f};
@@ -76,33 +76,33 @@ struct
         bool show_line_contour{true};
         bool animate{true};
     } params;
-} state{};
+} state;
 
-void append_source_vertices()
+void mesh_set_src_verts()
 {
     auto& mesh = state.mesh;
 
     assert(mesh.asset);
     auto random_vert = state.random.generator<i32>(0, mesh.asset->vertices.count());
 
-    auto& src_verts = mesh.source_vertices;
-    while (size(src_verts) < state.params.num_sources.value)
-        src_verts.push_back(random_vert());
-}
-
-void reset_source_vertices()
-{
-    auto& mesh = state.mesh;
-
-    assert(mesh.asset);
-    auto random_vert = state.random.generator<i32>(0, mesh.asset->vertices.count());
-
-    auto& src_verts = mesh.source_vertices;
+    auto& src_verts = mesh.src_verts;
     for (isize i = 0; i < size(src_verts); ++i)
         src_verts[i] = random_vert();
 }
 
-void set_mesh(MeshAsset const* asset)
+void mesh_append_src_verts()
+{
+    auto& mesh = state.mesh;
+
+    assert(mesh.asset);
+    auto random_vert = state.random.generator<i32>(0, mesh.asset->vertices.count());
+
+    auto& src_verts = mesh.src_verts;
+    while (size(src_verts) < state.params.num_sources.value)
+        src_verts.push_back(random_vert());
+}
+
+void mesh_set_asset(MeshAsset const* asset)
 {
     assert(asset);
 
@@ -110,8 +110,8 @@ void set_mesh(MeshAsset const* asset)
     mesh.asset = asset;
 
     // Initialize source vertices
-    mesh.source_vertices.resize(state.params.num_sources.value);
-    reset_source_vertices();
+    mesh.src_verts.resize(state.params.num_sources.value);
+    mesh_set_src_verts();
 
     // Update GPU buffers
     set_mesh_indices(mesh.gpu.index, as_span(asset->faces.vertex_ids));
@@ -119,12 +119,11 @@ void set_mesh(MeshAsset const* asset)
         mesh.gpu.vertex,
         as_span(asset->vertices.positions),
         as_span(asset->vertices.normals));
-    mesh.gpu.func.count = 0;
 
     // Fit to unit sphere in world space
     auto const& [cen, rad] = asset->bounds;
     f32 const s = 1.0f / rad;
-    mesh.transform = {
+    mesh.xform = {
         .translation = -cen * s,
         .scale = s,
     };
@@ -132,14 +131,20 @@ void set_mesh(MeshAsset const* asset)
 
 void mesh_set_plot(Span<f32 const> const& values)
 {
-    auto& mesh = state.mesh;
-    set_mesh_vertices(mesh.gpu.func, values);
+    assert(values);
+    set_mesh_vertices(state.mesh.gpu.func, values);
 }
 
-bool mesh_has_plot()
+bool mesh_has_plot() { return state.mesh.gpu.func.count > 0; }
+
+void mesh_clear()
 {
     auto& mesh = state.mesh;
-    return mesh.gpu.func.count > 0;
+    mesh.asset = nullptr;
+    mesh.src_verts.clear();
+    mesh.gpu.index.count = 0;
+    mesh.gpu.vertex.count = 0;
+    mesh.gpu.func.count = 0;
 }
 
 void schedule_task(SolveDistance& task)
@@ -154,7 +159,7 @@ void schedule_task(SolveDistance& task)
             {
                 task->input.mesh = state.mesh.asset;
                 task->input.source_vertices = //
-                    as_span(state.mesh.source_vertices).front(state.params.num_sources.value);
+                    as_span(state.mesh.src_verts).front(state.params.num_sources.value);
 
                 return true;
             };
@@ -186,7 +191,7 @@ void schedule_task(LoadMeshAsset& task)
             };
             case Event::AfterComplete:
             {
-                set_mesh(task->output.mesh);
+                mesh_set_asset(task->output.mesh);
                 return true;
             };
             default:
@@ -195,6 +200,14 @@ void schedule_task(LoadMeshAsset& task)
             };
         }
     });
+}
+
+void on_mesh_asset_change()
+{
+    mesh_clear();
+    schedule_task(state.tasks.load_mesh_asset);
+    state.task_queue.barrier();
+    schedule_task(state.tasks.solve_distance);
 }
 
 void draw_settings_tab()
@@ -217,9 +230,7 @@ void draw_settings_tab()
                         if (!is_curr)
                         {
                             state.params.mesh_handle = handle;
-                            schedule_task(state.tasks.load_mesh_asset);
-                            state.task_queue.barrier();
-                            schedule_task(state.tasks.solve_distance);
+                            on_mesh_asset_change();
                         }
                     }
 
@@ -239,7 +250,7 @@ void draw_settings_tab()
                 if (ImGui::IsItemDeactivatedAfterEdit())
                 {
                     state.params.num_sources.value = value;
-                    append_source_vertices();
+                    mesh_append_src_verts();
                     schedule_task(state.tasks.solve_distance);
                 }
             }
@@ -251,7 +262,7 @@ void draw_settings_tab()
 
                 if (ImGui::Button(label))
                 {
-                    reset_source_vertices();
+                    mesh_set_src_verts();
                     schedule_task(state.tasks.solve_distance);
                 }
             }
@@ -383,16 +394,19 @@ void draw_ui()
     draw_status_tooltip();
 }
 
-void debug_draw_source_normals(Mat4<f32> const& local_to_view)
+void debug_draw_source_normals(Mat4<f32> const& world_to_view)
 {
+    auto const& mesh = state.mesh;
+    assert(mesh.asset);
+
+    Mat4<f32> const local_to_world = mesh.xform.to_matrix();
+    Mat4<f32> const local_to_view = world_to_view * local_to_world;
+
     sgl_matrix_mode_modelview();
     sgl_load_matrix(local_to_view.data());
 
     sgl_begin_lines();
     sgl_c3f(1.0f, 1.0f, 1.0f);
-
-    auto const& mesh = state.mesh;
-    assert(mesh.asset);
 
     auto const& verts = mesh.asset->vertices;
     f32 const scale = mesh.asset->bounds.radius * 0.2f;
@@ -400,7 +414,7 @@ void debug_draw_source_normals(Mat4<f32> const& local_to_view)
     i32 const num_sources = state.params.num_sources.value;
     for (i32 i = 0; i < num_sources; ++i)
     {
-        auto const v = mesh.source_vertices[i];
+        auto const v = mesh.src_verts[i];
         auto const p0 = verts.positions.col(v);
         auto const p1 = (p0 - verts.normals.col(v) * scale).eval();
 
@@ -420,12 +434,8 @@ void draw_debug(Mat4<f32> const& world_to_view, Mat4<f32> const& view_to_clip)
 
     debug_draw_axes(world_to_view, 0.1f);
 
-    // Only draw source normals once plot is available
     if (mesh_has_plot())
-    {
-        Mat4<f32> const local_to_world = state.mesh.transform.to_matrix();
-        debug_draw_source_normals(world_to_view * local_to_world);
-    }
+        debug_draw_source_normals(world_to_view);
 
     sgl_draw();
 }
@@ -456,11 +466,7 @@ void open(void* /*context*/)
     }
 
     // Load default mesh asset and solve
-    {
-        schedule_task(state.tasks.load_mesh_asset);
-        state.task_queue.barrier();
-        schedule_task(state.tasks.solve_distance);
-    }
+    on_mesh_asset_change();
 }
 
 void close(void* /*context*/)
@@ -518,7 +524,7 @@ void draw(void* /*context*/)
             .contour_color = params.show_color_contour ? &contour_color_mat : nullptr,
             .contour_line = params.show_line_contour ? &contour_line_mat : nullptr,
         },
-        .transform = mesh.transform,
+        .transform = mesh.xform,
     };
 
     state.renderer.render(SceneDesc{

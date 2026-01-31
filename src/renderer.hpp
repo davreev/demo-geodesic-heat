@@ -7,7 +7,6 @@
 #include <dr/span.hpp>
 #include <dr/transform.hpp>
 
-#include <dr/app/app.hpp>
 #include <dr/app/gfx_resource.hpp>
 
 namespace dr

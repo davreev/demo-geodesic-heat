@@ -24,26 +24,6 @@ enum struct UniformBlock : u8
 // NOTE(dr): The assigned shader stage doesn't appear to matter when using OpenGL backends
 static sg_shader_stage const shader_stage_any = SG_SHADERSTAGE_VERTEX;
 
-sg_shader_uniform_block unlit_pass_uniform_block()
-{
-    return {
-        .stage = shader_stage_any,
-        .size = sizeof(f32[16 * 2]),
-        .glsl_uniforms{
-            {
-                .type = SG_UNIFORMTYPE_FLOAT4,
-                .array_count = 4,
-                .glsl_name = "pass.world_to_view.data",
-            },
-            {
-                .type = SG_UNIFORMTYPE_FLOAT4,
-                .array_count = 4,
-                .glsl_name = "pass.world_to_clip.data",
-            },
-        },
-    };
-}
-
 template <typename T>
 struct Impl;
 
@@ -64,7 +44,23 @@ struct Impl<ContourColorMaterial>
             .vertex_func{.source = vs_src},
             .fragment_func{.source = fs_src},
             .uniform_blocks{
-                unlit_pass_uniform_block(),
+                {
+                    // Pass block
+                    .stage = shader_stage_any,
+                    .size = sizeof(f32[16 * 2]),
+                    .glsl_uniforms{
+                        {
+                            .type = SG_UNIFORMTYPE_FLOAT4,
+                            .array_count = 4,
+                            .glsl_name = "pass.world_to_view.data",
+                        },
+                        {
+                            .type = SG_UNIFORMTYPE_FLOAT4,
+                            .array_count = 4,
+                            .glsl_name = "pass.world_to_clip.data",
+                        },
+                    },
+                },
                 {
                     // Material block
                     .stage = shader_stage_any,
@@ -210,7 +206,23 @@ struct Impl<ContourLineMaterial>
             .vertex_func{.source = vs_src},
             .fragment_func{.source = fs_src},
             .uniform_blocks{
-                unlit_pass_uniform_block(),
+                {
+                    // Pass block
+                    .stage = shader_stage_any,
+                    .size = sizeof(f32[16 * 2]),
+                    .glsl_uniforms{
+                        {
+                            .type = SG_UNIFORMTYPE_FLOAT4,
+                            .array_count = 4,
+                            .glsl_name = "pass.world_to_view.data",
+                        },
+                        {
+                            .type = SG_UNIFORMTYPE_FLOAT4,
+                            .array_count = 4,
+                            .glsl_name = "pass.world_to_clip.data",
+                        },
+                    },
+                },
                 {
                     // Material block
                     .stage = shader_stage_any,
@@ -341,38 +353,6 @@ void apply_uniforms(UniformBlock const block, Span<u8 const> const data)
 
 } // namespace
 
-template <>
-void Renderer::render(SceneDesc const& scene)
-{
-    using Impl = Impl<SceneDesc>;
-
-    Impl::emit_draw_cmds<Pass::UnlitOpaque>(scene, draw_cmds_, uniform_data_);
-    submit_draw_cmds(as_span(draw_cmds_), uniform_data_);
-
-    Impl::emit_draw_cmds<Pass::UnlitTransparent>(scene, draw_cmds_, uniform_data_);
-    submit_draw_cmds(as_span(draw_cmds_), uniform_data_);
-}
-
-GfxPipeline::Handle ContourColorMaterial::pipeline() const
-{
-    return Impl<ContourColorMaterial>::default_pipeline;
-}
-
-Span<u8 const> ContourColorMaterial::uniform_data() const
-{
-    return {as<u8>(&spacing), sizeof(f32[2])};
-}
-
-GfxPipeline::Handle ContourLineMaterial::pipeline() const
-{
-    return Impl<ContourLineMaterial>::default_pipeline;
-}
-
-Span<u8 const> ContourLineMaterial::uniform_data() const
-{
-    return {as<u8>(&spacing), sizeof(f32[3])};
-}
-
 void Renderer::submit_draw_cmds(
     Span<DrawCommand> const& draw_cmds,
     SlicedArray<u8> const& uniform_data)
@@ -439,6 +419,18 @@ void Renderer::submit_draw_cmds(
 
         sg_draw(cmd.base_element, cmd.num_elements, cmd.num_instances);
     }
+}
+
+template <>
+void Renderer::render(SceneDesc const& scene)
+{
+    using Impl = Impl<SceneDesc>;
+
+    Impl::emit_draw_cmds<Pass::UnlitOpaque>(scene, draw_cmds_, uniform_data_);
+    submit_draw_cmds(as_span(draw_cmds_), uniform_data_);
+
+    Impl::emit_draw_cmds<Pass::UnlitTransparent>(scene, draw_cmds_, uniform_data_);
+    submit_draw_cmds(as_span(draw_cmds_), uniform_data_);
 }
 
 template <>
@@ -541,6 +533,26 @@ void Renderer::emit_draw_cmds<Renderer::Pass::UnlitTransparent>(
     } u;
     as_mat<4, 4>(u.local_to_world) = src.transform.to_matrix();
     uniform_data.push_back(as_bytes(u));
+}
+
+GfxPipeline::Handle ContourColorMaterial::pipeline() const
+{
+    return Impl<ContourColorMaterial>::default_pipeline;
+}
+
+Span<u8 const> ContourColorMaterial::uniform_data() const
+{
+    return {as<u8>(&spacing), sizeof(f32[2])};
+}
+
+GfxPipeline::Handle ContourLineMaterial::pipeline() const
+{
+    return Impl<ContourLineMaterial>::default_pipeline;
+}
+
+Span<u8 const> ContourLineMaterial::uniform_data() const
+{
+    return {as<u8>(&spacing), sizeof(f32[3])};
 }
 
 void init_default_gfx_resources()

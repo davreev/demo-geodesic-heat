@@ -413,9 +413,13 @@ void Renderer::submit_draw_cmds(
         if (bindings_dirty)
             sg_apply_bindings(cmd.bindings);
 
-        Span<u8 const> const object_uniform_data = uniform_data[cmd.uniform_slice];
-        if (object_uniform_data.size() > 0)
-            apply_uniforms(UniformBlock::Object, object_uniform_data);
+        // Slice index of 0 is treated as invalid for object uniforms
+        if (cmd.uniform_slice != 0)
+        {
+            Span<u8 const> const object_uniform_data = uniform_data[cmd.uniform_slice];
+            if (object_uniform_data.size() > 0)
+                apply_uniforms(UniformBlock::Object, object_uniform_data);
+        }
 
         sg_draw(cmd.base_element, cmd.num_elements, cmd.num_instances);
     }

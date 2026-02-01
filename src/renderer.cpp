@@ -355,7 +355,8 @@ void apply_uniforms(UniformBlock const block, Span<u8 const> const data)
 
 void Renderer::submit_draw_cmds(
     Span<DrawCommand> const& draw_cmds,
-    SlicedArray<u8> const& uniform_data)
+    SlicedArray<u8> const& uniform_data,
+    GfxBindings const& pass_bindings)
 {
     // Order draw commands by pipeline, then material, then geometry
     std::sort(begin(draw_cmds), end(draw_cmds), [](DrawCommand const& a, DrawCommand const& b) {
@@ -370,6 +371,7 @@ void Renderer::submit_draw_cmds(
     GfxPipeline::Handle pipeline{};
     void const* geometry = nullptr;
     void const* material = nullptr;
+    GfxBindings bindings{};
 
     // Pass uniforms are assumed to be the first slice
     assert(uniform_data.num_slices() > 0);
@@ -388,6 +390,7 @@ void Renderer::submit_draw_cmds(
 
             geometry = nullptr;
             material = nullptr;
+            bindings = pass_bindings;
         }
 
         bool bindings_dirty = false;
@@ -411,7 +414,10 @@ void Renderer::submit_draw_cmds(
         }
 
         if (bindings_dirty)
-            sg_apply_bindings(cmd.bindings);
+        {
+            cmd.set_bindings(cmd, bindings);
+            sg_apply_bindings(bindings);
+        }
 
         // Slice index of 0 is treated as invalid for object uniforms
         if (cmd.uniform_slice != 0)
@@ -443,10 +449,27 @@ void Renderer::emit_draw_cmds<Renderer::Pass::UnlitOpaque>(
     DynamicArray<Renderer::DrawCommand>& draw_cmds,
     SlicedArray<u8>& uniform_data)
 {
-    using MatImpl = Impl<ContourColorMaterial>;
+    using Material = ContourColorMaterial;
+    using Geometry = MeshPlotGeometry;
+
+    auto set_bindings = [](DrawCommand const& cmd, GfxBindings& b) {
+        auto const geom = static_cast<Geometry const*>(cmd.geometry);
+        b.vertex_buffers[0] = geom->vertex;
+        b.vertex_buffers[1] = geom->vertex;
+        b.vertex_buffers[2] = geom->func;
+        b.vertex_buffer_offsets[0] = 0;
+        b.vertex_buffer_offsets[1] = geom->vertex_count * sizeof(f32[3]);
+        b.vertex_buffer_offsets[2] = 0;
+        b.index_buffer = geom->index;
+
+        auto const mat = static_cast<Material const*>(cmd.material);
+        b.images[0] = valid_or(mat->matcap.image, Impl<Material>::default_matcap.image.handle());
+        b.samplers[0] = valid_or(
+            mat->matcap.sampler,
+            Impl<Material>::default_matcap.sampler.handle());
+    };
 
     auto const mat = src.materials.contour_color;
-    auto const geom = src.geometry;
 
     // Skip if material isn't assigned
     if (mat == nullptr)
@@ -454,31 +477,13 @@ void Renderer::emit_draw_cmds<Renderer::Pass::UnlitOpaque>(
 
     // Append draw cmd
     draw_cmds.push_back({
-        .bindings{
-            .vertex_buffers{
-                geom->vertex,
-                geom->vertex,
-                geom->func,
-            },
-            .vertex_buffer_offsets{
-                0,
-                int(geom->vertex_count * sizeof(f32[3])),
-                0,
-            },
-            .index_buffer = geom->index,
-            .images{
-                valid_or(mat->matcap.image, MatImpl::default_matcap.image.handle()),
-            },
-            .samplers{
-                valid_or(mat->matcap.sampler, MatImpl::default_matcap.sampler.handle()),
-            },
-        },
         .pipeline = mat->pipeline(),
         .material = mat,
-        .geometry = geom,
+        .geometry = src.geometry,
+        .set_bindings = set_bindings,
         .material_uniform_data = mat->uniform_data(),
         .uniform_slice = uniform_data.num_slices(),
-        .num_elements = int(geom->index_count),
+        .num_elements = int(src.geometry->index_count),
         .num_instances = 1,
     });
 
@@ -498,8 +503,20 @@ void Renderer::emit_draw_cmds<Renderer::Pass::UnlitTransparent>(
     DynamicArray<Renderer::DrawCommand>& draw_cmds,
     SlicedArray<u8>& uniform_data)
 {
+    using Geometry = MeshPlotGeometry;
+
+    auto set_bindings = [](DrawCommand const& cmd, GfxBindings& b) {
+        auto const geom = static_cast<Geometry const*>(cmd.geometry);
+        b.vertex_buffers[0] = geom->vertex;
+        b.vertex_buffers[1] = geom->vertex;
+        b.vertex_buffers[2] = geom->func;
+        b.vertex_buffer_offsets[0] = 0;
+        b.vertex_buffer_offsets[1] = geom->vertex_count * sizeof(f32[3]);
+        b.vertex_buffer_offsets[2] = 0;
+        b.index_buffer = geom->index;
+    };
+
     auto const mat = src.materials.contour_line;
-    auto const geom = src.geometry;
 
     // Skip if material isn't assigned
     if (mat == nullptr)
@@ -507,25 +524,13 @@ void Renderer::emit_draw_cmds<Renderer::Pass::UnlitTransparent>(
 
     // Append draw cmd
     draw_cmds.push_back({
-        .bindings{
-            .vertex_buffers{
-                geom->vertex,
-                geom->vertex,
-                geom->func,
-            },
-            .vertex_buffer_offsets{
-                0,
-                int(geom->vertex_count * sizeof(f32[3])),
-                0,
-            },
-            .index_buffer = geom->index,
-        },
         .pipeline = mat->pipeline(),
         .material = mat,
-        .geometry = geom,
+        .geometry = src.geometry,
+        .set_bindings = set_bindings,
         .material_uniform_data = mat->uniform_data(),
         .uniform_slice = uniform_data.num_slices(),
-        .num_elements = int(geom->index_count),
+        .num_elements = int(src.geometry->index_count),
         .num_instances = 1,
     });
 

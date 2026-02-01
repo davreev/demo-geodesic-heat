@@ -27,10 +27,10 @@ struct Renderer
 
     struct DrawCommand
     {
-        GfxBindings bindings{};
         GfxPipeline::Handle pipeline{};
         void const* material{};
         void const* geometry{};
+        void (*set_bindings)(DrawCommand const& self, GfxBindings& bindings);
         Span<u8 const> material_uniform_data;
         Span<u8 const> geometry_uniform_data;
         i32 uniform_slice{};
@@ -46,12 +46,9 @@ struct Renderer
     /// Specialize for different scene object types
     template <Pass pass, typename Source>
     static void emit_draw_cmds(
-        Source const& /*src*/,
-        DynamicArray<DrawCommand>& /*draw_cmds*/,
-        SlicedArray<u8>& /*uniform_data*/)
-    {
-        // No draw commands emitted by default
-    }
+        Source const& src,
+        DynamicArray<DrawCommand>& draw_cmds,
+        SlicedArray<u8>& uniform_data);
 
   private:
     DynamicArray<DrawCommand> draw_cmds_;
@@ -60,7 +57,8 @@ struct Renderer
     /// Orders and submits cached draw commands
     static void submit_draw_cmds(
         Span<DrawCommand> const& draw_cmds,
-        SlicedArray<u8> const& uniform_data);
+        SlicedArray<u8> const& uniform_data,
+        GfxBindings const& pass_bindings = {});
 };
 
 /*

@@ -1,25 +1,19 @@
-import "modules/common.slang";
+import "modules/common";
+import "param_types";
 
-struct Pass
-{
-    float4x4 world_to_view;
-    float4x4 world_to_clip;
-}
-ConstantBuffer<Pass> pass;
-
-struct Material
+struct MaterialParams
 {
     float spacing;
     float line_width;
     float offset;
 }
-ConstantBuffer<Material> material;
 
-struct Object
-{
-    float4x4 local_to_world;
-}
-ConstantBuffer<Object> object;
+ConstantBuffer<PassParams> pass;
+ConstantBuffer<MaterialParams> material;
+ConstantBuffer<ObjectParams> object;
+
+static float4x4 local_to_view = mul(pass.world_to_view, object.local_to_world);
+static float4x4 local_to_clip = mul(pass.world_to_clip, object.local_to_world);
 
 struct Vertex
 {
@@ -36,9 +30,6 @@ struct Vertex
 float4 vertex_main(Vertex v, out float3 view_position, out float3 view_normal, out float scalar) :
     SV_Position
 {
-    let local_to_view = mul(pass.world_to_view, object.local_to_world);
-    let local_to_clip = mul(pass.world_to_clip, object.local_to_world);
-
     view_position = mul(local_to_view, { v.position, 1.0 }).xyz;
     // NOTE(dr): This assumes local_to_view has uniform scaling
     view_normal = mul(float3x3(local_to_view), v.normal);

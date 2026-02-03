@@ -443,8 +443,7 @@ void draw_debug(Mat4<f32> const& world_to_view, Mat4<f32> const& view_to_clip)
 void open(void* /*context*/)
 {
     ThreadPool::start(1);
-
-    init_default_gfx_resources();
+    Renderer::init_default_resources();
 
     // Pre-allocate mesh resource handles
     {
@@ -575,7 +574,7 @@ void handle_event(void* /*context*/, App::Event const& event)
                 case SAPP_KEYCODE_R:
                 {
                     if (is_mouse_over(event))
-                        reload_default_shaders();
+                        Renderer::reload_default_shaders();
 
                     break;
                 };

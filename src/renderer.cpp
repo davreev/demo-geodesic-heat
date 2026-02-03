@@ -16,6 +16,17 @@ using Pass = Renderer::Pass;
 // NOTE(dr): The assigned shader stage doesn't appear to matter when using OpenGL backends
 static sg_shader_stage const shader_stage_any = SG_SHADERSTAGE_VERTEX;
 
+struct PassParams
+{
+    f32 world_to_view[16];
+    f32 world_to_clip[16];
+};
+
+struct ObjectParams
+{
+    f32 local_to_world[16];
+};
+
 template <typename T>
 struct Impl;
 
@@ -307,51 +318,69 @@ struct Impl<ContourLineMaterial>
     };
 };
 
-template <>
-struct Impl<SceneDesc>
+template <Pass pass>
+void render_pass(
+    SceneDesc const& scene,
+    DynamicArray<DrawCommand>& draw_cmds,
+    SlicedArray<u8>& uniform_data)
 {
-    // NOTE(dr): Can be specialized for different passes (e.g. lit vs unlit)
-    template <Pass pass>
-    static void emit_draw_cmds(
-        SceneDesc const& src,
-        DynamicArray<DrawCommand>& draw_cmds,
-        SlicedArray<u8>& uniform_data)
-    {
-        draw_cmds.clear();
-        uniform_data.clear();
+    draw_cmds.clear();
+    uniform_data.clear();
 
-        // Pass uniforms are assumed to be the first slice
-        struct
-        {
-            f32 world_to_view[16];
-            f32 world_to_clip[16];
-        } u;
-        as_mat<4, 4>(u.world_to_view) = src.camera.world_to_view;
-        as_mat<4, 4>(u.world_to_clip) = src.camera.view_to_clip * src.camera.world_to_view;
-        uniform_data.push_back(as_bytes(u));
+    // Pass uniforms are assumed to be the first slice
+    PassParams p{};
+    as_mat<4, 4>(p.world_to_view) = scene.camera.world_to_view;
+    as_mat<4, 4>(p.world_to_clip) = scene.camera.view_to_clip * scene.camera.world_to_view;
+    uniform_data.push_back(as_bytes(p));
 
-        for (auto const& obj : src.mesh_plots)
-            Renderer::emit_draw_cmds<pass>(obj, draw_cmds, uniform_data);
+    for (auto const& mp : scene.mesh_plots)
+        Renderer::emit_draw_cmds<pass>(mp, draw_cmds, uniform_data);
 
-        // Emit any other scene objects included in this pass
-        // ...
-    }
-};
+    order_draw_cmds(as_span(draw_cmds));
+    submit_draw_cmds(as_span(draw_cmds), uniform_data);
+}
 
 } // namespace
+
+void Renderer::init_default_resources()
+{
+    Impl<ContourColorMaterial>::init_default_resources();
+    Impl<ContourLineMaterial>::init_default_resources();
+    // ...
+}
+
+void Renderer::reload_default_shaders()
+{
+    Impl<ContourColorMaterial>::init_default_shader();
+    Impl<ContourLineMaterial>::init_default_shader();
+    // ...
+}
+
+GfxPipeline::Handle ContourColorMaterial::pipeline() const
+{
+    return Impl<ContourColorMaterial>::default_pipeline;
+}
+
+Span<u8 const> ContourColorMaterial::uniform_data() const
+{
+    return {as<u8>(&spacing), sizeof(f32[2])};
+}
+
+GfxPipeline::Handle ContourLineMaterial::pipeline() const
+{
+    return Impl<ContourLineMaterial>::default_pipeline;
+}
+
+Span<u8 const> ContourLineMaterial::uniform_data() const
+{
+    return {as<u8>(&spacing), sizeof(f32[3])};
+}
 
 template <>
 void Renderer::render(SceneDesc const& scene)
 {
-    using Impl = Impl<SceneDesc>;
-
-    Impl::emit_draw_cmds<Pass::UnlitOpaque>(scene, draw_cmds_, uniform_data_);
-    order_draw_cmds(as_span(draw_cmds_));
-    submit_draw_cmds(as_span(draw_cmds_), uniform_data_);
-
-    Impl::emit_draw_cmds<Pass::UnlitTransparent>(scene, draw_cmds_, uniform_data_);
-    order_draw_cmds(as_span(draw_cmds_));
-    submit_draw_cmds(as_span(draw_cmds_), uniform_data_);
+    render_pass<Pass::UnlitOpaque>(scene, draw_cmds_, uniform_data_);
+    render_pass<Pass::UnlitTransparent>(scene, draw_cmds_, uniform_data_);
 }
 
 template <>
@@ -399,13 +428,9 @@ void Renderer::emit_draw_cmds<Pass::UnlitOpaque>(
     });
 
     // Append uniform data
-    struct
-    {
-        f32 local_to_world[16];
-        // ...
-    } u;
-    as_mat<4, 4>(u.local_to_world) = src.transform.to_matrix();
-    uniform_data.push_back(as_bytes(u));
+    ObjectParams p{};
+    as_mat<4, 4>(p.local_to_world) = src.transform.to_matrix();
+    uniform_data.push_back(as_bytes(p));
 }
 
 template <>
@@ -446,47 +471,9 @@ void Renderer::emit_draw_cmds<Pass::UnlitTransparent>(
     });
 
     // Append uniform data
-    struct
-    {
-        f32 local_to_world[16];
-        // ...
-    } u;
-    as_mat<4, 4>(u.local_to_world) = src.transform.to_matrix();
-    uniform_data.push_back(as_bytes(u));
-}
-
-GfxPipeline::Handle ContourColorMaterial::pipeline() const
-{
-    return Impl<ContourColorMaterial>::default_pipeline;
-}
-
-Span<u8 const> ContourColorMaterial::uniform_data() const
-{
-    return {as<u8>(&spacing), sizeof(f32[2])};
-}
-
-GfxPipeline::Handle ContourLineMaterial::pipeline() const
-{
-    return Impl<ContourLineMaterial>::default_pipeline;
-}
-
-Span<u8 const> ContourLineMaterial::uniform_data() const
-{
-    return {as<u8>(&spacing), sizeof(f32[3])};
-}
-
-void init_default_gfx_resources()
-{
-    Impl<ContourColorMaterial>::init_default_resources();
-    Impl<ContourLineMaterial>::init_default_resources();
-    // ...
-}
-
-void reload_default_shaders()
-{
-    Impl<ContourColorMaterial>::init_default_shader();
-    Impl<ContourLineMaterial>::init_default_shader();
-    // ...
+    ObjectParams p{};
+    as_mat<4, 4>(p.local_to_world) = src.transform.to_matrix();
+    uniform_data.push_back(as_bytes(p));
 }
 
 } // namespace dr

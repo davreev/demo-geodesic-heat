@@ -18,11 +18,46 @@ struct PassParams
 {
     f32 world_to_view[16];
     f32 world_to_clip[16];
+
+    static sg_shader_uniform_block uniform_block()
+    {
+        return {
+            .stage = shader_stage_any,
+            .size = sizeof(f32[16 * 2]),
+            .glsl_uniforms{
+                {
+                    .type = SG_UNIFORMTYPE_FLOAT4,
+                    .array_count = 4,
+                    .glsl_name = "pass.world_to_view.data",
+                },
+                {
+                    .type = SG_UNIFORMTYPE_FLOAT4,
+                    .array_count = 4,
+                    .glsl_name = "pass.world_to_clip.data",
+                },
+            },
+        };
+    }
 };
 
 struct ObjectParams
 {
     f32 local_to_world[16];
+
+    static sg_shader_uniform_block uniform_block()
+    {
+        return {
+            .stage = shader_stage_any,
+            .size = sizeof(f32[16 * 1]),
+            .glsl_uniforms{
+                {
+                    .type = SG_UNIFORMTYPE_FLOAT4,
+                    .array_count = 4,
+                    .glsl_name = "object.local_to_world.data",
+                },
+            },
+        };
+    }
 };
 
 template <typename T>
@@ -45,23 +80,7 @@ struct Impl<ContourColorMaterial>
             .vertex_func{.source = vs_src},
             .fragment_func{.source = fs_src},
             .uniform_blocks{
-                {
-                    // Pass block
-                    .stage = shader_stage_any,
-                    .size = sizeof(f32[16 * 2]),
-                    .glsl_uniforms{
-                        {
-                            .type = SG_UNIFORMTYPE_FLOAT4,
-                            .array_count = 4,
-                            .glsl_name = "pass.world_to_view.data",
-                        },
-                        {
-                            .type = SG_UNIFORMTYPE_FLOAT4,
-                            .array_count = 4,
-                            .glsl_name = "pass.world_to_clip.data",
-                        },
-                    },
-                },
+                PassParams::uniform_block(),
                 {
                     // Material block
                     .stage = shader_stage_any,
@@ -81,18 +100,7 @@ struct Impl<ContourColorMaterial>
                     // Geometry block
                     // ...
                 },
-                {
-                    // Object block
-                    .stage = shader_stage_any,
-                    .size = sizeof(f32[16 * 1]),
-                    .glsl_uniforms{
-                        {
-                            .type = SG_UNIFORMTYPE_FLOAT4,
-                            .array_count = 4,
-                            .glsl_name = "object.local_to_world.data",
-                        },
-                    },
-                },
+                ObjectParams::uniform_block(),
             },
             .images{
                 {.stage = shader_stage_any},
@@ -207,23 +215,7 @@ struct Impl<ContourLineMaterial>
             .vertex_func{.source = vs_src},
             .fragment_func{.source = fs_src},
             .uniform_blocks{
-                {
-                    // Pass block
-                    .stage = shader_stage_any,
-                    .size = sizeof(f32[16 * 2]),
-                    .glsl_uniforms{
-                        {
-                            .type = SG_UNIFORMTYPE_FLOAT4,
-                            .array_count = 4,
-                            .glsl_name = "pass.world_to_view.data",
-                        },
-                        {
-                            .type = SG_UNIFORMTYPE_FLOAT4,
-                            .array_count = 4,
-                            .glsl_name = "pass.world_to_clip.data",
-                        },
-                    },
-                },
+                PassParams::uniform_block(),
                 {
                     // Material block
                     .stage = shader_stage_any,
@@ -247,18 +239,7 @@ struct Impl<ContourLineMaterial>
                     // Geometry block
                     // ...
                 },
-                {
-                    // Object block
-                    .stage = shader_stage_any,
-                    .size = sizeof(f32[16 * 1]),
-                    .glsl_uniforms{
-                        {
-                            .type = SG_UNIFORMTYPE_FLOAT4,
-                            .array_count = 4,
-                            .glsl_name = "object.local_to_world.data",
-                        },
-                    },
-                },
+                ObjectParams::uniform_block(),
             },
         };
     }
@@ -365,28 +346,31 @@ void Renderer::render(SceneDesc const& scene)
         submit_draw_cmds(as_span(draw_cmds_), uniform_data_);
     };
 
-    auto append_pass_uniforms = [&]() {
-        PassParams p{};
-        as_mat<4, 4>(p.world_to_view) = scene.camera.world_to_view;
-        as_mat<4, 4>(p.world_to_clip) = scene.camera.view_to_clip * scene.camera.world_to_view;
-        uniform_data_.push_back(as_bytes(p));
-    };
+    PassParams params{};
+    as_mat<4, 4>(params.world_to_view) = scene.camera.world_to_view;
+    as_mat<4, 4>(params.world_to_clip) = scene.camera.view_to_clip * scene.camera.world_to_view;
 
-    begin_pass();
-    append_pass_uniforms();
+    // Mesh plots (opaque)
+    {
+        begin_pass();
+        uniform_data_.push_back(as_bytes(params));
 
-    for (auto const& mp : scene.mesh_plots)
-        emit_draw_cmds<ContourColorMaterial>(mp, draw_cmds_, uniform_data_);
+        for (auto const& mp : scene.mesh_plots)
+            emit_draw_cmds<ContourColorMaterial>(mp, draw_cmds_, uniform_data_);
 
-    end_pass();
+        end_pass();
+    }
 
-    begin_pass();
-    append_pass_uniforms();
+    // Mesh plots (transparent)
+    {
+        begin_pass();
+        uniform_data_.push_back(as_bytes(params));
 
-    for (auto const& mp : scene.mesh_plots)
-        emit_draw_cmds<ContourLineMaterial>(mp, draw_cmds_, uniform_data_);
+        for (auto const& mp : scene.mesh_plots)
+            emit_draw_cmds<ContourLineMaterial>(mp, draw_cmds_, uniform_data_);
 
-    end_pass();
+        end_pass();
+    }
 }
 
 template <>
@@ -434,9 +418,9 @@ void emit_draw_cmds<ContourColorMaterial>(
     });
 
     // Append uniform data
-    ObjectParams p{};
-    as_mat<4, 4>(p.local_to_world) = src.transform.to_matrix();
-    uniform_data.push_back(as_bytes(p));
+    ObjectParams params{};
+    as_mat<4, 4>(params.local_to_world) = src.transform.to_matrix();
+    uniform_data.push_back(as_bytes(params));
 }
 
 template <>
@@ -477,9 +461,9 @@ void emit_draw_cmds<ContourLineMaterial>(
     });
 
     // Append uniform data
-    ObjectParams p{};
-    as_mat<4, 4>(p.local_to_world) = src.transform.to_matrix();
-    uniform_data.push_back(as_bytes(p));
+    ObjectParams params{};
+    as_mat<4, 4>(params.local_to_world) = src.transform.to_matrix();
+    uniform_data.push_back(as_bytes(params));
 }
 
 } // namespace dr

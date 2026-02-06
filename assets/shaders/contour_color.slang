@@ -31,9 +31,9 @@ struct Vertex
 float4 vertex_main(Vertex v, out float3 view_normal, out float scalar) : SV_Position
 {
     // NOTE(dr): This assumes local_to_view has uniform scaling
-    view_normal = normalize(mul(float3x3(local_to_view), v.normal));
+    view_normal = normalize(mul(local_to_view, float4(v.normal, 0.0))).xyz;
     scalar = v.scalar;
-    return mul(local_to_clip, { v.position, 1.0 });
+    return mul(local_to_clip, float4(v.position, 1.0));
 }
 
 [shader("fragment")]

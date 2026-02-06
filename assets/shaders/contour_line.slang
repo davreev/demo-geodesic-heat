@@ -30,11 +30,11 @@ struct Vertex
 float4 vertex_main(Vertex v, out float3 view_position, out float3 view_normal, out float scalar) :
     SV_Position
 {
-    view_position = mul(local_to_view, { v.position, 1.0 }).xyz;
+    view_position = mul(local_to_view, float4(v.position, 1.0)).xyz;
     // NOTE(dr): This assumes local_to_view has uniform scaling
-    view_normal = mul(float3x3(local_to_view), v.normal);
+    view_normal = mul(local_to_view, float4(v.normal, 0.0)).xyz;
     scalar = v.scalar;
-    return mul(local_to_clip, { v.position, 1.0 });
+    return mul(local_to_clip, float4(v.position, 1.0));
 }
 
 float4 shade_rim(float3 view_dir, float3 view_norm, float4 color, float4 color_base)

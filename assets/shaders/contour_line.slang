@@ -4,8 +4,8 @@ import "param_types";
 struct MaterialParams
 {
     float spacing;
-    float line_width;
     float offset;
+    float line_width;
 }
 
 ConstantBuffer<PassParams> pass;

@@ -445,14 +445,6 @@ void open(void* /*context*/)
     ThreadPool::start(1);
     Renderer::init_default_resources();
 
-    // Pre-allocate mesh resource handles
-    {
-        auto& mesh = state.mesh;
-        mesh.gpu.index.buffer = GfxBuffer::alloc();
-        mesh.gpu.vertex.buffer = GfxBuffer::alloc();
-        mesh.gpu.func.buffer = GfxBuffer::alloc();
-    }
-
     // Center camera on unit sphere
     {
         auto& cam = state.camera;
@@ -503,8 +495,8 @@ void draw(void* /*context*/)
 
     ContourLineMaterial const contour_line_mat{
         .spacing = params.contour_spacing.value,
-        .line_width = params.contour_line_width.value,
         .offset = offset_now,
+        .line_width = params.contour_line_width.value,
     };
 
     auto const& mesh = state.mesh;
@@ -526,13 +518,14 @@ void draw(void* /*context*/)
         .transform = mesh.xform,
     };
 
-    state.renderer.render(SceneDesc{
-        .mesh_plots = {&mesh_plot, mesh_has_plot() ? 1 : 0},
-        .camera{
-            .world_to_view = world_to_view,
-            .view_to_clip = view_to_clip,
-        },
-    });
+    state.renderer.render(
+        SceneDesc{
+            .mesh_plots = {&mesh_plot, mesh_has_plot() ? 1 : 0},
+            .camera{
+                .world_to_view = world_to_view,
+                .view_to_clip = view_to_clip,
+            },
+        });
 
     draw_debug(world_to_view, view_to_clip);
     draw_ui();

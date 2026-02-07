@@ -46,17 +46,15 @@ struct ContourColorMaterial
     f32 offset{};
 
     GfxPipeline::Handle pipeline() const;
-    Span<u8 const> uniform_data() const;
 };
 
 struct ContourLineMaterial
 {
     f32 spacing{};
-    f32 line_width{};
     f32 offset{};
+    f32 line_width{};
 
     GfxPipeline::Handle pipeline() const;
-    Span<u8 const> uniform_data() const;
 };
 
 struct MeshPlotGeometry

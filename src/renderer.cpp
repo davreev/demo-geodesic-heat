@@ -14,16 +14,27 @@ namespace
 // NOTE(dr): The assigned shader stage doesn't appear to matter when using OpenGL backends
 static sg_shader_stage const shader_stage_any = SG_SHADERSTAGE_VERTEX;
 
+// NOTE(dr): Not using standard ctors on param types so that they still qualify for
+// aggregate/designated init
+
 struct PassParams
 {
-    f32 world_to_view[16];
-    f32 world_to_clip[16];
+    f32 world_to_view[16]{};
+    f32 world_to_clip[16]{};
+
+    static PassParams make(Mat4<f32> const& world_to_view, Mat4<f32> const& view_to_clip)
+    {
+        PassParams p;
+        as_mat<4, 4>(p.world_to_view) = world_to_view;
+        as_mat<4, 4>(p.world_to_clip) = view_to_clip * world_to_view;
+        return p;
+    }
 
     static sg_shader_uniform_block uniform_block()
     {
         return {
             .stage = shader_stage_any,
-            .size = sizeof(f32[16 * 2]),
+            .size = sizeof(PassParams),
             .glsl_uniforms{
                 {
                     .type = SG_UNIFORMTYPE_FLOAT4,
@@ -42,18 +53,100 @@ struct PassParams
 
 struct ObjectParams
 {
-    f32 local_to_world[16];
+    f32 local_to_world[16]{};
+
+    static ObjectParams make(Mat4<f32> const& local_to_world)
+    {
+        ObjectParams p;
+        as_mat<4, 4>(p.local_to_world) = local_to_world;
+        return p;
+    }
 
     static sg_shader_uniform_block uniform_block()
     {
         return {
             .stage = shader_stage_any,
-            .size = sizeof(f32[16 * 1]),
+            .size = sizeof(ObjectParams),
             .glsl_uniforms{
                 {
                     .type = SG_UNIFORMTYPE_FLOAT4,
                     .array_count = 4,
                     .glsl_name = "object.local_to_world.data",
+                },
+            },
+        };
+    }
+};
+
+template <typename T>
+struct Params;
+
+template <>
+struct Params<ContourColorMaterial>
+{
+    f32 spacing{};
+    f32 offset{};
+
+    static Params make(ContourColorMaterial const& src)
+    {
+        return {
+            .spacing = src.spacing,
+            .offset = src.offset,
+        };
+    }
+
+    static sg_shader_uniform_block uniform_block()
+    {
+        return {
+            .stage = shader_stage_any,
+            .size = sizeof(Params),
+            .glsl_uniforms{
+                {
+                    .type = SG_UNIFORMTYPE_FLOAT,
+                    .glsl_name = "material.spacing",
+                },
+                {
+                    .type = SG_UNIFORMTYPE_FLOAT,
+                    .glsl_name = "material.offset",
+                },
+            },
+        };
+    }
+};
+
+template <>
+struct Params<ContourLineMaterial>
+{
+    f32 spacing{};
+    f32 offset{};
+    f32 line_width{};
+
+    static Params make(ContourLineMaterial const& src)
+    {
+        return {
+            .spacing = src.spacing,
+            .offset = src.offset,
+            .line_width = src.line_width,
+        };
+    }
+
+    static sg_shader_uniform_block uniform_block()
+    {
+        return {
+            .stage = shader_stage_any,
+            .size = sizeof(Params),
+            .glsl_uniforms{
+                {
+                    .type = SG_UNIFORMTYPE_FLOAT,
+                    .glsl_name = "material.spacing",
+                },
+                {
+                    .type = SG_UNIFORMTYPE_FLOAT,
+                    .glsl_name = "material.offset",
+                },
+                {
+                    .type = SG_UNIFORMTYPE_FLOAT,
+                    .glsl_name = "material.line_width",
                 },
             },
         };
@@ -81,25 +174,8 @@ struct Impl<ContourColorMaterial>
             .fragment_func{.source = fs_src},
             .uniform_blocks{
                 PassParams::uniform_block(),
-                {
-                    // Material block
-                    .stage = shader_stage_any,
-                    .size = sizeof(f32[2]),
-                    .glsl_uniforms{
-                        {
-                            .type = SG_UNIFORMTYPE_FLOAT,
-                            .glsl_name = "material.spacing",
-                        },
-                        {
-                            .type = SG_UNIFORMTYPE_FLOAT,
-                            .glsl_name = "material.offset",
-                        },
-                    },
-                },
-                {
-                    // Geometry block
-                    // ...
-                },
+                Params<ContourColorMaterial>::uniform_block(),
+                {}, // Geometry block (unused)
                 ObjectParams::uniform_block(),
             },
             .images{
@@ -216,29 +292,8 @@ struct Impl<ContourLineMaterial>
             .fragment_func{.source = fs_src},
             .uniform_blocks{
                 PassParams::uniform_block(),
-                {
-                    // Material block
-                    .stage = shader_stage_any,
-                    .size = sizeof(f32[3]),
-                    .glsl_uniforms{
-                        {
-                            .type = SG_UNIFORMTYPE_FLOAT,
-                            .glsl_name = "material.spacing",
-                        },
-                        {
-                            .type = SG_UNIFORMTYPE_FLOAT,
-                            .glsl_name = "material.line_width",
-                        },
-                        {
-                            .type = SG_UNIFORMTYPE_FLOAT,
-                            .glsl_name = "material.offset",
-                        },
-                    },
-                },
-                {
-                    // Geometry block
-                    // ...
-                },
+                Params<ContourLineMaterial>::uniform_block(),
+                {}, // Geometry block (unused)
                 ObjectParams::uniform_block(),
             },
         };
@@ -318,19 +373,9 @@ GfxPipeline::Handle ContourColorMaterial::pipeline() const
     return Impl<ContourColorMaterial>::default_pipeline;
 }
 
-Span<u8 const> ContourColorMaterial::uniform_data() const
-{
-    return {as<u8>(&spacing), sizeof(f32[2])};
-}
-
 GfxPipeline::Handle ContourLineMaterial::pipeline() const
 {
     return Impl<ContourLineMaterial>::default_pipeline;
-}
-
-Span<u8 const> ContourLineMaterial::uniform_data() const
-{
-    return {as<u8>(&spacing), sizeof(f32[3])};
 }
 
 template <>
@@ -346,9 +391,7 @@ void Renderer::render(SceneDesc const& scene)
         submit_draw_cmds(as_span(draw_cmds_), uniform_data_);
     };
 
-    PassParams params{};
-    as_mat<4, 4>(params.world_to_view) = scene.camera.world_to_view;
-    as_mat<4, 4>(params.world_to_clip) = scene.camera.view_to_clip * scene.camera.world_to_view;
+    auto const params = PassParams::make(scene.camera.world_to_view, scene.camera.view_to_clip);
 
     // Mesh plots (opaque)
     {
@@ -379,6 +422,12 @@ void emit_draw_cmds<ContourColorMaterial>(
     DynamicArray<DrawCommand>& draw_cmds,
     SlicedArray<u8>& uniform_data)
 {
+    auto const mat = src.materials.contour_color;
+
+    // Skip if material isn't assigned
+    if (mat == nullptr)
+        return;
+
     using Material = ContourColorMaterial;
     using Geometry = MeshPlotGeometry;
 
@@ -399,28 +448,27 @@ void emit_draw_cmds<ContourColorMaterial>(
             Impl<Material>::default_matcap.sampler.handle());
     };
 
-    auto const mat = src.materials.contour_color;
-
-    // Skip if material isn't assigned
-    if (mat == nullptr)
-        return;
-
     // Append draw cmd
     draw_cmds.push_back({
         .pipeline = mat->pipeline(),
         .material = mat,
         .geometry = src.geometry,
         .set_bindings = set_bindings,
-        .material_uniform_data = mat->uniform_data(),
-        .uniform_slice = uniform_data.num_slices(),
+        .uniform_slices{
+            .material = uniform_data.num_slices(),
+            .object = uniform_data.num_slices() + 1,
+        },
         .num_elements = int(src.geometry->index_count),
         .num_instances = 1,
     });
 
-    // Append uniform data
-    ObjectParams params{};
-    as_mat<4, 4>(params.local_to_world) = src.transform.to_matrix();
-    uniform_data.push_back(as_bytes(params));
+    // Append material uniforms
+    auto const mat_params = Params<Material>::make(*mat);
+    uniform_data.push_back(as_bytes(mat_params));
+
+    // Append object uniforms
+    auto const obj_params = ObjectParams::make(src.transform.to_matrix());
+    uniform_data.push_back(as_bytes(obj_params));
 }
 
 template <>
@@ -429,6 +477,13 @@ void emit_draw_cmds<ContourLineMaterial>(
     DynamicArray<DrawCommand>& draw_cmds,
     SlicedArray<u8>& uniform_data)
 {
+    auto const mat = src.materials.contour_line;
+
+    // Skip if material isn't assigned
+    if (mat == nullptr)
+        return;
+
+    using Material = ContourLineMaterial;
     using Geometry = MeshPlotGeometry;
 
     auto set_bindings = [](DrawCommand const& cmd, GfxBindings& b) {
@@ -442,28 +497,27 @@ void emit_draw_cmds<ContourLineMaterial>(
         b.index_buffer = geom->index;
     };
 
-    auto const mat = src.materials.contour_line;
-
-    // Skip if material isn't assigned
-    if (mat == nullptr)
-        return;
-
     // Append draw cmd
     draw_cmds.push_back({
         .pipeline = mat->pipeline(),
         .material = mat,
         .geometry = src.geometry,
         .set_bindings = set_bindings,
-        .material_uniform_data = mat->uniform_data(),
-        .uniform_slice = uniform_data.num_slices(),
+        .uniform_slices{
+            .material = uniform_data.num_slices(),
+            .object = uniform_data.num_slices() + 1,
+        },
         .num_elements = int(src.geometry->index_count),
         .num_instances = 1,
     });
 
-    // Append uniform data
-    ObjectParams params{};
-    as_mat<4, 4>(params.local_to_world) = src.transform.to_matrix();
-    uniform_data.push_back(as_bytes(params));
+    // Append material uniforms
+    auto const mat_params = Params<Material>::make(*mat);
+    uniform_data.push_back(as_bytes(mat_params));
+
+    // Append object uniforms
+    auto const obj_params = ObjectParams::make(src.transform.to_matrix());
+    uniform_data.push_back(as_bytes(obj_params));
 }
 
 } // namespace dr

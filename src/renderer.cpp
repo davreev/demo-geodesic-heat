@@ -79,81 +79,6 @@ struct ObjectParams
 };
 
 template <typename T>
-struct Params;
-
-template <>
-struct Params<ContourColorMaterial>
-{
-    f32 spacing{};
-    f32 offset{};
-
-    static Params make(ContourColorMaterial const& src)
-    {
-        return {
-            .spacing = src.spacing,
-            .offset = src.offset,
-        };
-    }
-
-    static sg_shader_uniform_block uniform_block()
-    {
-        return {
-            .stage = shader_stage_any,
-            .size = sizeof(Params),
-            .glsl_uniforms{
-                {
-                    .type = SG_UNIFORMTYPE_FLOAT,
-                    .glsl_name = "material.spacing",
-                },
-                {
-                    .type = SG_UNIFORMTYPE_FLOAT,
-                    .glsl_name = "material.offset",
-                },
-            },
-        };
-    }
-};
-
-template <>
-struct Params<ContourLineMaterial>
-{
-    f32 spacing{};
-    f32 offset{};
-    f32 line_width{};
-
-    static Params make(ContourLineMaterial const& src)
-    {
-        return {
-            .spacing = src.spacing,
-            .offset = src.offset,
-            .line_width = src.line_width,
-        };
-    }
-
-    static sg_shader_uniform_block uniform_block()
-    {
-        return {
-            .stage = shader_stage_any,
-            .size = sizeof(Params),
-            .glsl_uniforms{
-                {
-                    .type = SG_UNIFORMTYPE_FLOAT,
-                    .glsl_name = "material.spacing",
-                },
-                {
-                    .type = SG_UNIFORMTYPE_FLOAT,
-                    .glsl_name = "material.offset",
-                },
-                {
-                    .type = SG_UNIFORMTYPE_FLOAT,
-                    .glsl_name = "material.line_width",
-                },
-            },
-        };
-    }
-};
-
-template <typename T>
 struct Impl;
 
 template <>
@@ -167,6 +92,38 @@ struct Impl<ContourColorMaterial>
         GfxSampler sampler;
     } inline static default_matcap;
 
+    struct Params
+    {
+        f32 spacing{};
+        f32 offset{};
+
+        static Params make(ContourColorMaterial const& src)
+        {
+            return {
+                .spacing = src.spacing,
+                .offset = src.offset,
+            };
+        }
+
+        static sg_shader_uniform_block uniform_block()
+        {
+            return {
+                .stage = shader_stage_any,
+                .size = sizeof(Params),
+                .glsl_uniforms{
+                    {
+                        .type = SG_UNIFORMTYPE_FLOAT,
+                        .glsl_name = "material.spacing",
+                    },
+                    {
+                        .type = SG_UNIFORMTYPE_FLOAT,
+                        .glsl_name = "material.offset",
+                    },
+                },
+            };
+        }
+    };
+
     static GfxShader::Desc shader_desc(char const* const vs_src, char const* const fs_src)
     {
         return {
@@ -174,7 +131,7 @@ struct Impl<ContourColorMaterial>
             .fragment_func{.source = fs_src},
             .uniform_blocks{
                 PassParams::uniform_block(),
-                Params<ContourColorMaterial>::uniform_block(),
+                Params::uniform_block(),
                 {}, // Geometry block (unused)
                 ObjectParams::uniform_block(),
             },
@@ -285,6 +242,44 @@ struct Impl<ContourLineMaterial>
     inline static GfxPipeline default_pipeline;
     inline static GfxShader default_shader;
 
+    struct Params
+    {
+        f32 spacing{};
+        f32 offset{};
+        f32 line_width{};
+
+        static Params make(ContourLineMaterial const& src)
+        {
+            return {
+                .spacing = src.spacing,
+                .offset = src.offset,
+                .line_width = src.line_width,
+            };
+        }
+
+        static sg_shader_uniform_block uniform_block()
+        {
+            return {
+                .stage = shader_stage_any,
+                .size = sizeof(Params),
+                .glsl_uniforms{
+                    {
+                        .type = SG_UNIFORMTYPE_FLOAT,
+                        .glsl_name = "material.spacing",
+                    },
+                    {
+                        .type = SG_UNIFORMTYPE_FLOAT,
+                        .glsl_name = "material.offset",
+                    },
+                    {
+                        .type = SG_UNIFORMTYPE_FLOAT,
+                        .glsl_name = "material.line_width",
+                    },
+                },
+            };
+        }
+    };
+
     static GfxShader::Desc shader_desc(char const* const vs_src, char const* const fs_src)
     {
         return {
@@ -292,7 +287,7 @@ struct Impl<ContourLineMaterial>
             .fragment_func{.source = fs_src},
             .uniform_blocks{
                 PassParams::uniform_block(),
-                Params<ContourLineMaterial>::uniform_block(),
+                Params::uniform_block(),
                 {}, // Geometry block (unused)
                 ObjectParams::uniform_block(),
             },
@@ -463,7 +458,7 @@ void emit_draw_cmds<ContourColorMaterial>(
     });
 
     // Append material uniforms
-    auto const mat_params = Params<Material>::make(*mat);
+    auto const mat_params = Impl<Material>::Params::make(*mat);
     uniform_data.push_back(as_bytes(mat_params));
 
     // Append object uniforms
@@ -512,7 +507,7 @@ void emit_draw_cmds<ContourLineMaterial>(
     });
 
     // Append material uniforms
-    auto const mat_params = Params<Material>::make(*mat);
+    auto const mat_params = Impl<Material>::Params::make(*mat);
     uniform_data.push_back(as_bytes(mat_params));
 
     // Append object uniforms

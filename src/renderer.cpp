@@ -4,7 +4,6 @@
 #include <dr/memory.hpp>
 
 #include "assets.hpp"
-#include "utils.hpp"
 
 namespace dr
 {
@@ -317,6 +316,12 @@ struct Impl<ContourLineMaterial>
     };
 };
 
+template <typename Handle>
+Handle const valid_or(Handle const handle, Handle const other)
+{
+    return (handle.id == SG_INVALID_ID) ? other : handle;
+}
+
 } // namespace
 
 GfxPipeline::Handle ContourColorMaterial::pipeline() const
@@ -384,7 +389,7 @@ void emit_draw_cmds<ContourColorMaterial>(MeshPlot const& src, DrawContext& draw
         auto const geom = static_cast<Geometry const*>(cmd.geometry);
         b.vertex_buffers[0] = geom->vertex;
         b.vertex_buffers[1] = geom->vertex;
-        b.vertex_buffers[2] = geom->func;
+        b.vertex_buffers[2] = geom->plot;
         b.vertex_buffer_offsets[0] = 0;
         b.vertex_buffer_offsets[1] = geom->vertex_count * sizeof(f32[3]);
         b.vertex_buffer_offsets[2] = 0;
@@ -428,7 +433,7 @@ void emit_draw_cmds<ContourLineMaterial>(MeshPlot const& src, DrawContext& draw_
         auto const geom = static_cast<Geometry const*>(cmd.geometry);
         b.vertex_buffers[0] = geom->vertex;
         b.vertex_buffers[1] = geom->vertex;
-        b.vertex_buffers[2] = geom->func;
+        b.vertex_buffers[2] = geom->plot;
         b.vertex_buffer_offsets[0] = 0;
         b.vertex_buffer_offsets[1] = geom->vertex_count * sizeof(f32[3]);
         b.vertex_buffer_offsets[2] = 0;

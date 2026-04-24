@@ -18,7 +18,6 @@
 #include "assets.hpp"
 #include "renderer.hpp"
 #include "tasks.hpp"
-#include "utils.hpp"
 
 namespace dr
 {
@@ -47,12 +46,8 @@ struct
         MeshAsset const* asset{};
         DynamicArray<i32> src_verts;
         Conformal3<f32> xform;
-        struct
-        {
-            Buffer<sizeof(i32)> index;
-            Buffer<sizeof(f32[6])> vertex;
-            Buffer<sizeof(f32)> func;
-        } gpu;
+        GeometryStream stream[2];
+        bool plot_dirty;
     } mesh;
 
     Random<> random{1};
@@ -68,13 +63,13 @@ struct
     struct
     {
         AssetHandle::Mesh mesh_handle{};
-        Param<i32> num_sources{1, 1, 10};
-        Param<f32> contour_spacing{0.1f, 0.0f, 1.0f};
-        Param<f32> contour_line_width{0.3f, 0.0f, 1.0f};
-        Param<f32> contour_speed{0.1f, 0.0f, 1.0f};
-        Param<f32> contour_offset{0.0f, 0.0f, 1.0f};
-        bool show_color_contour{true};
-        bool show_line_contour{true};
+        i32 num_sources{1};
+        f32 contour_spacing{0.1f};
+        f32 contour_line_width{0.3f};
+        f32 contour_speed{0.1f};
+        f32 contour_offset{0.0f};
+        bool show_color{true};
+        bool show_line{true};
         bool animate{true};
     } params;
 } state;
@@ -99,7 +94,7 @@ void mesh_append_src_verts()
     auto random_vert = state.random.generator<i32>(0, mesh.asset->vertices.count());
 
     auto& src_verts = mesh.src_verts;
-    while (size(src_verts) < state.params.num_sources.value)
+    while (size(src_verts) < state.params.num_sources)
         src_verts.push_back(random_vert());
 }
 
@@ -111,15 +106,16 @@ void mesh_set_asset(MeshAsset const* asset)
     mesh.asset = asset;
 
     // Initialize source vertices
-    mesh.src_verts.resize(state.params.num_sources.value);
+    mesh.src_verts.resize(state.params.num_sources);
     mesh_set_src_verts();
 
     // Update GPU buffers
-    set_mesh_indices(mesh.gpu.index, as_span(asset->faces.vertex_ids));
-    set_mesh_vertices(
-        mesh.gpu.vertex,
-        as_span(asset->vertices.positions),
-        as_span(asset->vertices.normals));
+    mesh.stream[0].push_vertices(as<u8>(as_span(asset->vertices.positions)));
+    mesh.stream[0].push_vertices(as<u8>(as_span(asset->vertices.normals)));
+    mesh.stream[0].push_indices(as<u8>(as_span(asset->faces.vertex_ids)));
+    mesh.stream[0].update_device_buffers();
+    mesh.stream[0].clear();
+    mesh.plot_dirty = true;
 
     // Fit to unit sphere in world space
     auto const& [cen, rad] = asset->bounds;
@@ -133,20 +129,21 @@ void mesh_set_asset(MeshAsset const* asset)
 void mesh_set_plot(Span<f32 const> const& values)
 {
     assert(values);
-    set_mesh_vertices(state.mesh.gpu.func, values);
+    auto& mesh = state.mesh;
+    mesh.stream[1].push_vertices(as<u8>(values));
+    mesh.stream[1].update_device_buffers();
+    mesh.stream[1].clear();
+    mesh.plot_dirty = false;
 }
-
-bool mesh_has_plot() { return state.mesh.gpu.func.count > 0; }
 
 void mesh_clear()
 {
     auto& mesh = state.mesh;
     mesh.asset = nullptr;
     mesh.src_verts.clear();
-    mesh.gpu.index.count = 0;
-    mesh.gpu.vertex.count = 0;
-    mesh.gpu.func.count = 0;
 }
+
+bool mesh_can_draw() { return state.mesh.asset && !state.mesh.plot_dirty; }
 
 void schedule_task(SolveDistance& task)
 {
@@ -160,7 +157,7 @@ void schedule_task(SolveDistance& task)
             {
                 task->input.mesh = state.mesh.asset;
                 task->input.source_vertices = //
-                    as_span(state.mesh.src_verts).front(state.params.num_sources.value);
+                    as_span(state.mesh.src_verts).front(state.params.num_sources);
 
                 return true;
             };
@@ -215,11 +212,13 @@ void draw_settings_tab()
 {
     if (ImGui::BeginTabItem("Settings"))
     {
+        auto& params = state.params;
+
         ImGui::SeparatorText("Model");
         {
             ImGui::BeginDisabled(state.task_queue.size() > 0);
 
-            AssetHandle::Mesh const curr_handle = state.params.mesh_handle;
+            AssetHandle::Mesh const curr_handle = params.mesh_handle;
             if (ImGui::BeginCombo("Shape", get_asset_meta(curr_handle).name))
             {
                 for (u8 i = 0; i < AssetHandle::_Mesh_Count; ++i)
@@ -230,7 +229,7 @@ void draw_settings_tab()
                     {
                         if (!is_curr)
                         {
-                            state.params.mesh_handle = handle;
+                            params.mesh_handle = handle;
                             on_mesh_asset_change();
                         }
                     }
@@ -244,20 +243,19 @@ void draw_settings_tab()
 
             {
                 // NOTE(dr): Changes are only committed back to state on mouse up
-                Param<i32>& p = state.params.num_sources;
-                static i32 value = p.value;
+                static i32 value = params.num_sources;
 
-                ImGui::SliderInt("Source count", &value, p.min, p.max);
+                ImGui::SliderInt("Source count", &value, 1, 10);
                 if (ImGui::IsItemDeactivatedAfterEdit())
                 {
-                    state.params.num_sources.value = value;
+                    params.num_sources = value;
                     mesh_append_src_verts();
                     schedule_task(state.tasks.solve_distance);
                 }
             }
 
             {
-                char const* label = (state.params.num_sources.value > 1) //
+                char const* label = (params.num_sources > 1) //
                     ? "Change sources"
                     : "Change source";
 
@@ -274,32 +272,24 @@ void draw_settings_tab()
 
         ImGui::SeparatorText("Display");
         {
-            {
-                Param<f32>& p = state.params.contour_spacing;
-                ImGui::SliderFloat("Contour spacing", &p.value, p.min, p.max, "%.3f");
-            }
-
+            ImGui::SliderFloat("Contour spacing", &params.contour_spacing, 0.0f, 1.0f, "%.3f");
 #if false
-            {
-                Param<f32>& p = state.params.contour_line_width;
-                ImGui::SliderFloat("Contour line width", &p.value, p.min, p.max, "%.3f");
-            }
+            ImGui::SliderFloat(
+                "Contour line width",
+                &params.contour_line_width,
+                0.0f,
+                1.0f,
+                "%.3f");
 #endif
 
-            if (state.params.animate)
-            {
-                Param<f32>& p = state.params.contour_speed;
-                ImGui::SliderFloat("Contour speed", &p.value, p.min, p.max, "%.3f");
-            }
+            if (params.animate)
+                ImGui::SliderFloat("Contour speed", &params.contour_speed, 0.0f, 1.0f, "%.3f");
             else
-            {
-                Param<f32>& p = state.params.contour_offset;
-                ImGui::SliderFloat("Contour offset", &p.value, p.min, p.max, "%.3f");
-            }
+                ImGui::SliderFloat("Contour offset", &params.contour_offset, 0.0f, 1.0f, "%.3f");
 
-            ImGui::Checkbox("Show color contour", &state.params.show_color_contour);
-            ImGui::Checkbox("Show line contour", &state.params.show_line_contour);
-            ImGui::Checkbox("Animate", &state.params.animate);
+            ImGui::Checkbox("Show color contour", &params.show_color);
+            ImGui::Checkbox("Show line contour", &params.show_line);
+            ImGui::Checkbox("Animate", &params.animate);
         }
         ImGui::Spacing();
 
@@ -412,7 +402,7 @@ void debug_draw_source_normals(Mat4<f32> const& world_to_view)
     auto const& verts = mesh.asset->vertices;
     f32 const scale = mesh.asset->bounds.radius * 0.2f;
 
-    i32 const num_sources = state.params.num_sources.value;
+    i32 const num_sources = state.params.num_sources;
     for (i32 i = 0; i < num_sources; ++i)
     {
         auto const v = mesh.src_verts[i];
@@ -435,7 +425,7 @@ void draw_debug(Mat4<f32> const& world_to_view, Mat4<f32> const& view_to_clip)
 
     debug_draw_axes(world_to_view, 0.1f);
 
-    if (mesh_has_plot())
+    if (mesh_can_draw())
         debug_draw_source_normals(world_to_view);
 
     sgl_draw();
@@ -483,51 +473,53 @@ void draw()
     Mat4<f32> const world_to_view = cam.make_world_to_view();
     Mat4<f32> const view_to_clip = cam.make_view_to_clip(App::aspect());
 
-    auto const& params = state.params;
-    f32 const offset = params.contour_offset.value;
-    f32 const speed = params.contour_speed.value;
-    f32 const time = stm_sec(state.animate_time);
-    f32 const offset_now = offset + time * speed;
+    if (mesh_can_draw())
+    {
+        auto const& params = state.params;
+        f32 const time = stm_sec(state.animate_time);
+        f32 const offset_now = params.contour_offset + time * params.contour_speed;
 
-    ContourColorMaterial const contour_color_mat{
-        .spacing = params.contour_spacing.value,
-        .offset = offset_now,
-    };
+        ContourColorMaterial const color_mat{
+            .spacing = params.contour_spacing,
+            .offset = offset_now,
+        };
 
-    ContourLineMaterial const contour_line_mat{
-        .spacing = params.contour_spacing.value,
-        .offset = offset_now,
-        .line_width = params.contour_line_width.value,
-    };
+        ContourLineMaterial const line_mat{
+            .spacing = params.contour_spacing,
+            .offset = offset_now,
+            .line_width = params.contour_line_width,
+        };
 
-    auto const& mesh = state.mesh;
+        auto const& mesh = state.mesh;
+        assert(mesh.asset);
 
-    MeshPlotGeometry const mesh_plot_geom{
-        .index = mesh.gpu.index.buffer,
-        .vertex = mesh.gpu.vertex.buffer,
-        .func = mesh.gpu.func.buffer,
-        .index_count = mesh.gpu.index.count,
-        .vertex_count = mesh.gpu.vertex.count,
-    };
+        MeshPlotGeometry const mesh_plot_geom{
+            .index = mesh.stream[0].index_buffer(),
+            .vertex = mesh.stream[0].vertex_buffer(),
+            .plot = mesh.stream[1].vertex_buffer(),
+            .index_count = 3 * mesh.asset->faces.count(),
+            .vertex_count = mesh.asset->vertices.count(),
+        };
 
-    MeshPlot const mesh_plot{
-        .geometry = &mesh_plot_geom,
-        .materials{
-            .contour_color = params.show_color_contour ? &contour_color_mat : nullptr,
-            .contour_line = params.show_line_contour ? &contour_line_mat : nullptr,
-        },
-        .transform = mesh.xform,
-    };
-
-    Renderer::render(
-        SceneView{
-            .mesh_plots = {&mesh_plot, mesh_has_plot() ? 1 : 0},
-            .camera{
-                .world_to_view = world_to_view,
-                .view_to_clip = view_to_clip,
+        MeshPlot const mesh_plot{
+            .geometry = &mesh_plot_geom,
+            .materials{
+                .contour_color = params.show_color ? &color_mat : nullptr,
+                .contour_line = params.show_line ? &line_mat : nullptr,
             },
-        },
-        state.draw_ctx);
+            .transform = mesh.xform,
+        };
+
+        Renderer::render(
+            SceneView{
+                .mesh_plots = {&mesh_plot, 1},
+                .camera{
+                    .world_to_view = world_to_view,
+                    .view_to_clip = view_to_clip,
+                },
+            },
+            state.draw_ctx);
+    }
 
     draw_debug(world_to_view, view_to_clip);
     draw_ui();

@@ -34,7 +34,6 @@ add_executable(
     "src/renderer.cpp"
     "src/scene.cpp"
     "src/tasks.cpp"
-    "src/utils.cpp"
 )
 
 include(deps/dr-app)

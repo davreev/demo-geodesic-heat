@@ -39,7 +39,7 @@ struct MeshPlotGeometry
 {
     GfxBuffer::Handle index{};
     GfxBuffer::Handle vertex{};
-    GfxBuffer::Handle func{};
+    GfxBuffer::Handle plot{};
     isize index_count{};
     isize vertex_count{};
 };

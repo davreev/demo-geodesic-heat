@@ -157,7 +157,6 @@ struct Impl<ContourColorMaterial>
                 },
             },
         });
-
         assert(default_shader.is_valid());
     };
 
@@ -320,6 +319,16 @@ struct Impl<ContourLineMaterial>
 
 } // namespace
 
+GfxPipeline::Handle ContourColorMaterial::pipeline() const
+{
+    return Impl<ContourColorMaterial>::default_pipeline;
+}
+
+GfxPipeline::Handle ContourLineMaterial::pipeline() const
+{
+    return Impl<ContourLineMaterial>::default_pipeline;
+}
+
 void Renderer::init_default_resources()
 {
     Impl<ContourColorMaterial>::init_default_resources();
@@ -334,18 +343,7 @@ void Renderer::reload_default_shaders()
     // ...
 }
 
-GfxPipeline::Handle ContourColorMaterial::pipeline() const
-{
-    return Impl<ContourColorMaterial>::default_pipeline;
-}
-
-GfxPipeline::Handle ContourLineMaterial::pipeline() const
-{
-    return Impl<ContourLineMaterial>::default_pipeline;
-}
-
-template <>
-void Renderer::render(SceneDesc const& scene)
+void Renderer::render(SceneView const& scene, DrawContext& draw_ctx)
 {
     auto const pass_params = PassParams::make(
         scene.camera.world_to_view,
@@ -354,9 +352,9 @@ void Renderer::render(SceneDesc const& scene)
     // Mesh plots (opaque)
     {
         for (auto const& mp : scene.mesh_plots)
-            emit_draw_cmds<ContourColorMaterial>(mp, draw_ctx_);
+            emit_draw_cmds<ContourColorMaterial>(mp, draw_ctx);
 
-        draw_ctx_.submit_draw_cmds({
+        draw_ctx.submit_draw_cmds({
             .uniform_data = as_bytes(pass_params),
         });
     }
@@ -364,9 +362,9 @@ void Renderer::render(SceneDesc const& scene)
     // Mesh plots (transparent)
     {
         for (auto const& mp : scene.mesh_plots)
-            emit_draw_cmds<ContourLineMaterial>(mp, draw_ctx_);
+            emit_draw_cmds<ContourLineMaterial>(mp, draw_ctx);
 
-        draw_ctx_.submit_draw_cmds({
+        draw_ctx.submit_draw_cmds({
             .uniform_data = as_bytes(pass_params),
         });
     }
@@ -375,14 +373,12 @@ void Renderer::render(SceneDesc const& scene)
 template <>
 void emit_draw_cmds<ContourColorMaterial>(MeshPlot const& src, DrawContext& draw_ctx)
 {
-    auto const mat = src.materials.contour_color;
-
-    // Skip if material isn't assigned
-    if (mat == nullptr)
-        return;
-
     using Material = ContourColorMaterial;
     using Geometry = MeshPlotGeometry;
+
+    auto const mat = src.materials.contour_color;
+    if (mat == nullptr)
+        return;
 
     auto set_bindings = [](DrawCommand const& cmd, GfxBindings& b) {
         auto const geom = static_cast<Geometry const*>(cmd.geometry);
@@ -404,7 +400,6 @@ void emit_draw_cmds<ContourColorMaterial>(MeshPlot const& src, DrawContext& draw
     auto const mat_params = Impl<Material>::Params::make(*mat);
     auto const obj_params = ObjectParams::make(src.transform.to_matrix());
 
-    // Append draw cmd
     draw_ctx.draw_cmds.push_back({
         .pipeline = mat->pipeline(),
         .material = mat,
@@ -422,14 +417,12 @@ void emit_draw_cmds<ContourColorMaterial>(MeshPlot const& src, DrawContext& draw
 template <>
 void emit_draw_cmds<ContourLineMaterial>(MeshPlot const& src, DrawContext& draw_ctx)
 {
-    auto const mat = src.materials.contour_line;
-
-    // Skip if material isn't assigned
-    if (mat == nullptr)
-        return;
-
     using Material = ContourLineMaterial;
     using Geometry = MeshPlotGeometry;
+
+    auto const mat = src.materials.contour_line;
+    if (mat == nullptr)
+        return;
 
     auto set_bindings = [](DrawCommand const& cmd, GfxBindings& b) {
         auto const geom = static_cast<Geometry const*>(cmd.geometry);
@@ -445,7 +438,6 @@ void emit_draw_cmds<ContourLineMaterial>(MeshPlot const& src, DrawContext& draw_
     auto const mat_params = Impl<Material>::Params::make(*mat);
     auto const obj_params = ObjectParams::make(src.transform.to_matrix());
 
-    // Append draw cmd
     draw_ctx.draw_cmds.push_back({
         .pipeline = mat->pipeline(),
         .material = mat,

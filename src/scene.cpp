@@ -8,6 +8,7 @@
 #include <dr/span.hpp>
 
 #include <dr/app/debug_draw.hpp>
+#include <dr/app/draw_context.hpp>
 #include <dr/app/event_handlers.hpp>
 #include <dr/app/orbit_camera.hpp>
 #include <dr/app/shim/imgui.hpp>
@@ -38,7 +39,7 @@ struct
 
 struct
 {
-    Renderer renderer;
+    DrawContext draw_ctx;
     OrbitCamera camera;
 
     struct
@@ -518,13 +519,15 @@ void draw()
         .transform = mesh.xform,
     };
 
-    state.renderer.render(SceneDesc{
-        .mesh_plots = {&mesh_plot, mesh_has_plot() ? 1 : 0},
-        .camera{
-            .world_to_view = world_to_view,
-            .view_to_clip = view_to_clip,
+    Renderer::render(
+        SceneView{
+            .mesh_plots = {&mesh_plot, mesh_has_plot() ? 1 : 0},
+            .camera{
+                .world_to_view = world_to_view,
+                .view_to_clip = view_to_clip,
+            },
         },
-    });
+        state.draw_ctx);
 
     draw_debug(world_to_view, view_to_clip);
     draw_ui();

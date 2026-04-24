@@ -13,24 +13,6 @@
 namespace dr
 {
 
-/// Simple forward renderer
-struct Renderer
-{
-    static void init_default_resources();
-    static void reload_default_shaders();
-
-    /// Specialize for different scene types
-    template <typename Scene>
-    void render(Scene const& scene);
-
-  private:
-    DrawContext draw_ctx_;
-};
-
-/// Specialize for different source/material combinations
-template <typename Material, typename Source>
-void emit_draw_cmds(Source const& src, DrawContext& draw_ctx);
-
 struct ContourColorMaterial
 {
     struct
@@ -73,7 +55,7 @@ struct MeshPlot
     Conformal3<f32> transform;
 };
 
-struct SceneDesc
+struct SceneView
 {
     Span<MeshPlot const> mesh_plots{};
     // ...
@@ -85,12 +67,16 @@ struct SceneDesc
     } camera;
 };
 
-/*
-    Specializations
-*/
+struct Renderer
+{
+    static void init_default_resources();
+    static void reload_default_shaders();
+    static void render(SceneView const& scene, DrawContext& draw_ctx);
+};
 
-template <>
-void Renderer::render(SceneDesc const& scene);
+/// Specialize for different source/material combinations
+template <typename Material, typename Source>
+void emit_draw_cmds(Source const& src, DrawContext& draw_ctx);
 
 template <>
 void emit_draw_cmds<ContourColorMaterial>(MeshPlot const& src, DrawContext& draw_ctx);

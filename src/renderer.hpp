@@ -7,7 +7,7 @@
 #include <dr/span.hpp>
 #include <dr/transform.hpp>
 
-#include <dr/app/draw_command.hpp>
+#include <dr/app/draw_context.hpp>
 #include <dr/app/gfx_resource.hpp>
 
 namespace dr
@@ -24,22 +24,18 @@ struct Renderer
     void render(Scene const& scene);
 
   private:
-    DynamicArray<DrawCommand> draw_cmds_;
-    SlicedArray<u8> uniform_data_;
+    DrawContext draw_ctx_;
 };
 
 /// Specialize for different source/material combinations
 template <typename Material, typename Source>
-void emit_draw_cmds(
-    Source const& src,
-    DynamicArray<DrawCommand>& draw_cmds,
-    SlicedArray<u8>& uniform_data);
+void emit_draw_cmds(Source const& src, DrawContext& draw_ctx);
 
 struct ContourColorMaterial
 {
     struct
     {
-        GfxImage::Handle image{};
+        GfxView::Handle view{};
         GfxSampler::Handle sampler{};
     } matcap;
     f32 spacing{};
@@ -97,15 +93,9 @@ template <>
 void Renderer::render(SceneDesc const& scene);
 
 template <>
-void emit_draw_cmds<ContourColorMaterial>(
-    MeshPlot const& src,
-    DynamicArray<DrawCommand>& draw_cmds,
-    SlicedArray<u8>& uniform_data);
+void emit_draw_cmds<ContourColorMaterial>(MeshPlot const& src, DrawContext& draw_ctx);
 
 template <>
-void emit_draw_cmds<ContourLineMaterial>(
-    MeshPlot const& src,
-    DynamicArray<DrawCommand>& draw_cmds,
-    SlicedArray<u8>& uniform_data);
+void emit_draw_cmds<ContourLineMaterial>(MeshPlot const& src, DrawContext& draw_ctx);
 
 } // namespace dr

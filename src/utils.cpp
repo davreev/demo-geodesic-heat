@@ -12,8 +12,7 @@ void set_mesh_indices(Buffer<sizeof(i32)>& dst, Span<Vec3<i32> const> const& fac
             dst.buffer,
             {
                 .size = usize(dst.size()),
-                .type = SG_BUFFERTYPE_INDEXBUFFER,
-                .usage = SG_USAGE_DYNAMIC,
+                .usage = {.index_buffer = true, .dynamic_update = true},
             });
         dst.capacity = dst.count;
     }
@@ -35,8 +34,7 @@ void set_mesh_vertices(
             dst.buffer,
             {
                 .size = usize(dst.size()),
-                .type = SG_BUFFERTYPE_VERTEXBUFFER,
-                .usage = SG_USAGE_DYNAMIC,
+                .usage = {.vertex_buffer = true, .dynamic_update = true},
             });
         dst.capacity = dst.count;
     }
@@ -54,8 +52,7 @@ void set_mesh_vertices(Buffer<sizeof(f32)>& dst, Span<f32 const> const& values)
             dst.buffer,
             {
                 .size = usize(dst.size()),
-                .type = SG_BUFFERTYPE_VERTEXBUFFER,
-                .usage = SG_USAGE_DYNAMIC,
+                .usage = {.vertex_buffer = true, .dynamic_update = true},
             });
         dst.capacity = dst.count;
     }

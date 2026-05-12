@@ -487,7 +487,7 @@ void draw()
         ContourLineMaterial const line_mat{
             .spacing = params.contour_spacing,
             .offset = offset_now,
-            .line_width = params.contour_line_width,
+            .line_width = sapp_dpi_scale() * params.contour_line_width,
         };
 
         auto const& mesh = state.mesh;

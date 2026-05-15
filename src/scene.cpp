@@ -46,7 +46,11 @@ struct
         MeshAsset const* asset{};
         DynamicArray<i32> src_verts;
         Conformal3<f32> xform;
-        GeometryStream stream[2];
+        struct
+        {
+            VertexStream vertex[2];
+            IndexStream<i32> index;
+        } streams;
         bool plot_dirty;
     } mesh;
 
@@ -110,11 +114,13 @@ void mesh_set_asset(MeshAsset const* asset)
     mesh_set_src_verts();
 
     // Update GPU buffers
-    mesh.stream[0].push_vertices(as<u8>(as_span(asset->vertices.positions)));
-    mesh.stream[0].push_vertices(as<u8>(as_span(asset->vertices.normals)));
-    mesh.stream[0].push_indices(as<u8>(as_span(asset->faces.vertex_ids)));
-    mesh.stream[0].update_device_buffers();
-    mesh.stream[0].clear();
+    mesh.streams.vertex[0].push(as<u8>(as_span(asset->vertices.positions)));
+    mesh.streams.vertex[0].push(as<u8>(as_span(asset->vertices.normals)));
+    mesh.streams.vertex[0].update_device_buffer();
+    mesh.streams.vertex[0].clear();
+    mesh.streams.index.push(as<i32>(as_span(asset->faces.vertex_ids)));
+    mesh.streams.index.update_device_buffer();
+    mesh.streams.index.clear();
     mesh.plot_dirty = true;
 
     // Fit to unit sphere in world space
@@ -130,9 +136,9 @@ void mesh_set_plot(Span<f32 const> const& values)
 {
     assert(values);
     auto& mesh = state.mesh;
-    mesh.stream[1].push_vertices(as<u8>(values));
-    mesh.stream[1].update_device_buffers();
-    mesh.stream[1].clear();
+    mesh.streams.vertex[1].push(as<u8>(values));
+    mesh.streams.vertex[1].update_device_buffer();
+    mesh.streams.vertex[1].clear();
     mesh.plot_dirty = false;
 }
 
@@ -494,11 +500,11 @@ void draw()
         assert(mesh.asset);
 
         MeshPlotGeometry const mesh_plot_geom{
-            .index = mesh.stream[0].index_buffer(),
-            .vertex = mesh.stream[0].vertex_buffer(),
-            .plot = mesh.stream[1].vertex_buffer(),
-            .index_count = 3 * mesh.asset->faces.count(),
+            .vertex = mesh.streams.vertex[0].device_buffer(),
+            .plot = mesh.streams.vertex[1].device_buffer(),
+            .index = mesh.streams.index.device_buffer(),
             .vertex_count = mesh.asset->vertices.count(),
+            .index_count = 3 * mesh.asset->faces.count(),
         };
 
         MeshPlot const mesh_plot{

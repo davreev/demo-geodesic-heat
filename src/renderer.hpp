@@ -37,11 +37,11 @@ struct ContourLineMaterial
 
 struct MeshPlotGeometry
 {
-    GfxBuffer::Handle index{};
     GfxBuffer::Handle vertex{};
     GfxBuffer::Handle plot{};
-    isize index_count{};
+    GfxBuffer::Handle index{};
     isize vertex_count{};
+    isize index_count{};
 };
 
 struct MeshPlot
